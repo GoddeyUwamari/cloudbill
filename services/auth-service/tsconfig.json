@@ -7,7 +7,11 @@
     "paths": {
       "@shared/*": ["shared/*"],
       "@auth/*": ["services/auth-service/src/*"]
-    }
+    },
+    "typeRoots": [
+      "../../node_modules/@types",
+      "./src/types"
+    ]
   },
   "include": [
     "src/**/*",
