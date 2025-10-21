@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
-import { query, queryOne, setTenantContext, getClient } from '../database/connection';
+import { queryOne, setTenantContext, getClient } from '../database/connection';
 import { Tenant, TenantStatus } from '../types';
 import {
   AuthenticationError,
@@ -65,7 +65,7 @@ const resolveTenantFromSubdomain = (req: Request): string | null => {
   }
 
   logger.debug('Tenant resolved from subdomain', { subdomain });
-  return subdomain;
+  return subdomain || null;
 };
 
 /**
@@ -214,7 +214,7 @@ const validateTenantStatus = (tenant: Tenant): void => {
  */
 export const resolveTenant = (strategy: TenantResolutionStrategy = DEFAULT_STRATEGY) => {
   return asyncHandler(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
       // Resolve tenant ID
       const tenantId = resolveTenantId(req, strategy);
 
@@ -258,7 +258,7 @@ export const resolveTenant = (strategy: TenantResolutionStrategy = DEFAULT_STRAT
  */
 export const resolveOptionalTenant = (strategy: TenantResolutionStrategy = DEFAULT_STRATEGY) => {
   return asyncHandler(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
       const tenantId = resolveTenantId(req, strategy);
 
       if (!tenantId) {
@@ -297,7 +297,7 @@ export const resolveOptionalTenant = (strategy: TenantResolutionStrategy = DEFAU
  * Use this AFTER resolveTenant middleware
  */
 export const setDatabaseTenantContext = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.tenantId) {
       throw new AuthenticationError('Tenant context not set');
     }
@@ -315,7 +315,8 @@ export const setDatabaseTenantContext = asyncHandler(
       (req as any).dbClient = client;
 
       // Ensure client is released after response
-      res.on('finish', () => {
+      const response = _res as Response;
+      response.on('finish', () => {
         client.release();
         logger.debug('Database client released');
       });
@@ -333,7 +334,7 @@ export const setDatabaseTenantContext = asyncHandler(
  * Use this AFTER requireAuth and resolveTenant
  */
 export const validateUserTenant = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new AuthenticationError('User authentication required');
     }
@@ -380,7 +381,7 @@ export const checkPlanLimit = (requiredPlan: string) => {
   const planHierarchy = ['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE'];
 
   return asyncHandler(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
       if (!req.tenant) {
         throw new AuthenticationError('Tenant context required');
       }
@@ -409,7 +410,7 @@ export const checkPlanLimit = (requiredPlan: string) => {
  * Check if tenant has reached user limit
  */
 export const checkUserLimit = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.tenant) {
       throw new AuthenticationError('Tenant context required');
     }

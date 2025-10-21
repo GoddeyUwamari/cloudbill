@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import { JwtPayload, UserRole, RequestContext } from '../types';
 import {
@@ -82,7 +82,7 @@ export const generateAccessToken = (payload: Omit<JwtPayload, 'iat' | 'exp'>): s
     expiresIn,
     issuer: 'cloudbill',
     audience: 'cloudbill-api',
-  });
+  } as SignOptions);
 };
 
 /**
@@ -95,7 +95,7 @@ export const generateRefreshToken = (payload: Omit<JwtPayload, 'iat' | 'exp'>): 
     expiresIn,
     issuer: 'cloudbill',
     audience: 'cloudbill-api',
-  });
+  } as SignOptions);
 };
 
 /**
@@ -148,7 +148,7 @@ const extractToken = (req: Request): string | null => {
  * Require authentication - throws error if no valid token
  */
 export const requireAuth = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     // Extract token
     const token = extractToken(req);
     if (!token) {
@@ -161,7 +161,6 @@ export const requireAuth = asyncHandler(
     // Attach user context to request
     req.user = {
       userId: decoded.userId,
-      email: decoded.email,
       role: decoded.role,
       tenantId: decoded.tenantId,
       ip: req.ip,
@@ -183,7 +182,7 @@ export const requireAuth = asyncHandler(
  * Optional authentication - attaches user if token exists, but doesn't fail if missing
  */
 export const optionalAuth = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const token = extractToken(req);
 
     if (token) {
@@ -192,7 +191,6 @@ export const optionalAuth = asyncHandler(
         
         req.user = {
           userId: decoded.userId,
-          email: decoded.email,
           role: decoded.role,
           tenantId: decoded.tenantId,
           ip: req.ip,
@@ -222,7 +220,7 @@ export const optionalAuth = asyncHandler(
  */
 export const requireRole = (...allowedRoles: UserRole[]) => {
   return asyncHandler(
-    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
       // Check if user is authenticated
       if (!req.user) {
         throw new AuthenticationError('Authentication required');
@@ -279,7 +277,7 @@ export const requireSuperAdmin = requireRole(UserRole.SUPER_ADMIN);
  * Usage: router.get('/tenants/:tenantId/users', requireAuth, validateTenantAccess, handler)
  */
 export const validateTenantAccess = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new AuthenticationError('Authentication required');
     }
@@ -312,7 +310,7 @@ export const validateTenantAccess = asyncHandler(
  * Usage: router.get('/users/:userId', requireAuth, validateResourceOwnership, handler)
  */
 export const validateResourceOwnership = asyncHandler(
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       throw new AuthenticationError('Authentication required');
     }

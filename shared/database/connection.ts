@@ -142,7 +142,7 @@ export const queryOne = async <T = any>(
   params?: any[]
 ): Promise<T | null> => {
   const rows = await query<T>(text, params);
-  return rows.length > 0 ? rows[0] : null;
+  return rows.length > 0 ? (rows[0] as T) : null;
 };
 
 /**

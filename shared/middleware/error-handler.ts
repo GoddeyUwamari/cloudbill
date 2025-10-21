@@ -128,7 +128,7 @@ export class ExternalServiceError extends AppError {
 /**
  * Format error into standardized API response
  */
-const formatErrorResponse = (error: Error, statusCode: number, code: string): ErrorResponse => {
+const formatErrorResponse = (error: Error, code: string): ErrorResponse => {
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   const errorResponse: ErrorResponse = {
@@ -161,7 +161,7 @@ export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   let statusCode = 500;
   let code = 'INTERNAL_ERROR';
@@ -191,7 +191,7 @@ export const errorHandler = (
   }
 
   // Format error response
-  const errorResponse = formatErrorResponse(err, statusCode, code);
+  const errorResponse = formatErrorResponse(err, code);
 
   // Build API response
   const response: ApiResponse = {
@@ -212,7 +212,7 @@ export const errorHandler = (
  * Handles requests to non-existent routes
  * Should be registered before error handler
  */
-export const notFoundHandler = (req: Request, res: Response, next: NextFunction): void => {
+export const notFoundHandler = (req: Request, _res: Response, next: NextFunction): void => {
   const error = new NotFoundError(`Route ${req.method} ${req.path}`);
   next(error);
 };
