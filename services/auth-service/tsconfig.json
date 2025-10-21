@@ -2,24 +2,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "../../",
-    "baseUrl": "../../",
-    "paths": {
-      "@shared/*": ["shared/*"],
-      "@auth/*": ["services/auth-service/src/*"]
-    },
-    "typeRoots": [
-      "../../node_modules/@types",
-      "./src/types"
-    ]
+    "rootDir": "./src"
   },
-  "include": [
-    "src/**/*",
-    "../../shared/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
 }
