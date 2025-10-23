@@ -1,0 +1,105 @@
+# ============================================================================
+# CloudBill - Docker Compose Configuration
+# Phase 1: PostgreSQL Only
+# ============================================================================
+# This file defines our Docker services. Currently just PostgreSQL.
+# We use version 3.8 which is stable and well-supported.
+
+version: '3.8'
+
+# ============================================================================
+# SERVICES - Define containers that will run
+# ============================================================================
+services:
+  
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # --------------------------------------------------------------------------
+  postgres:
+    # Image: Use official PostgreSQL 15 with Alpine Linux (lightweight)
+    image: postgres:15-alpine
+    
+    # Container name: Easy to reference in commands (docker logs cloudbill-postgres)
+    container_name: cloudbill-postgres
+    
+    # Restart policy: Container restarts unless explicitly stopped
+    # Options: no, always, on-failure, unless-stopped
+    restart: unless-stopped
+    
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Maps container's 5432 to host's 5433 to avoid conflict with local PostgreSQL
+    ports:
+      - "5433:5432"
+    
+    # Environment variables: Configure PostgreSQL
+    environment:
+      # Database name to create on first startup
+      POSTGRES_DB: ${POSTGRES_DB:-cloudbill}
+      
+      # Superuser username
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      
+      # Superuser password (use .env.docker for custom values)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      
+      # Character encoding for database
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
+    
+    # Volumes: Persist data even when container is removed
+    # named_volume:container_path maps to Docker-managed storage
+    volumes:
+      # Data persistence: Database files stored in Docker volume
+      - postgres_data:/var/lib/postgresql/data
+    
+    # Health check: Docker monitors if PostgreSQL is ready
+    # This is crucial for dependent services to wait for DB
+    healthcheck:
+      # Command to check if PostgreSQL accepts connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cloudbill}"]
+      
+      # Time between health checks
+      interval: 10s
+      
+      # Time to wait for check to succeed
+      timeout: 5s
+      
+      # Number of retries before marking unhealthy
+      retries: 5
+      
+      # Time to wait before first check (allows startup time)
+      start_period: 10s
+    
+    # Networks: Custom network for service communication
+    # Services on same network can communicate using service names
+    networks:
+      - cloudbill-network
+
+# ============================================================================
+# VOLUMES - Named volumes for data persistence
+# ============================================================================
+# Docker manages these volumes. Data persists even if container is deleted.
+# Location: /var/lib/docker/volumes/ on host (managed by Docker)
+volumes:
+  postgres_data:
+    driver: local
+
+# ============================================================================
+# NETWORKS - Custom networks for service communication
+# ============================================================================
+# Services on the same network can communicate using service names as hostnames
+# Example: postgres:5432 instead of localhost:5433
+networks:
+  cloudbill-network:
+    driver: bridge
+    # Bridge: Default driver, creates isolated network for containers
+
+# ============================================================================
+# USAGE EXAMPLES:
+# ============================================================================
+# Start services:       docker-compose up -d
+# Stop services:        docker-compose down
+# View logs:            docker-compose logs -f postgres
+# Check status:         docker-compose ps
+# Execute commands:     docker-compose exec postgres psql -U postgres -d cloudbill
+# Remove everything:    docker-compose down -v (includes volumes!)
+# ============================================================================
