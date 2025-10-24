@@ -1,8 +1,8 @@
 # ============================================================================
 # CloudBill - Docker Compose Configuration
-# Phase 1: PostgreSQL Only
+# Phase 2: PostgreSQL + Redis
 # ============================================================================
-# This file defines our Docker services. Currently just PostgreSQL.
+# This file defines our Docker services. PostgreSQL for data, Redis for caching.
 # We use version 3.8 which is stable and well-supported.
 
 version: '3.8'
@@ -74,6 +74,56 @@ services:
     networks:
       - cloudbill-network
 
+  # --------------------------------------------------------------------------
+  # Redis Cache Service
+  # --------------------------------------------------------------------------
+  redis:
+    # Image: Use official Redis 7 with Alpine Linux (lightweight)
+    image: redis:7-alpine
+    
+    # Container name: Easy to reference in commands (docker logs cloudbill-redis)
+    container_name: cloudbill-redis
+    
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+    
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Maps container's 6379 to host's 6380 to avoid conflict with local Redis
+    ports:
+      - "6380:6379"
+    
+    # Command: Redis server with persistence and password
+    # --appendonly yes: Enable AOF (Append Only File) for data durability
+    # --requirepass: Set password for Redis authentication
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    
+    # Volumes: Persist cache data (optional but recommended)
+    volumes:
+      # Data persistence: Redis AOF and RDB files stored in Docker volume
+      - redis_data:/data
+    
+    # Health check: Docker monitors if Redis is ready
+    healthcheck:
+      # Command to check if Redis responds to PING
+      # Using --no-auth-warning to suppress password warning in logs
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      
+      # Time between health checks
+      interval: 10s
+      
+      # Time to wait for check to succeed
+      timeout: 3s
+      
+      # Number of retries before marking unhealthy
+      retries: 5
+      
+      # Time to wait before first check
+      start_period: 5s
+    
+    # Networks: Same network as PostgreSQL for inter-service communication
+    networks:
+      - cloudbill-network
+
 # ============================================================================
 # VOLUMES - Named volumes for data persistence
 # ============================================================================
@@ -82,12 +132,15 @@ services:
 volumes:
   postgres_data:
     driver: local
+  
+  redis_data:
+    driver: local
 
 # ============================================================================
 # NETWORKS - Custom networks for service communication
 # ============================================================================
 # Services on the same network can communicate using service names as hostnames
-# Example: postgres:5432 instead of localhost:5433
+# Example: postgres:5432, redis:6379 (internal ports)
 networks:
   cloudbill-network:
     driver: bridge
@@ -96,10 +149,12 @@ networks:
 # ============================================================================
 # USAGE EXAMPLES:
 # ============================================================================
-# Start services:       docker-compose up -d
-# Stop services:        docker-compose down
-# View logs:            docker-compose logs -f postgres
-# Check status:         docker-compose ps
-# Execute commands:     docker-compose exec postgres psql -U postgres -d cloudbill
-# Remove everything:    docker-compose down -v (includes volumes!)
+# Start all services:       docker-compose up -d
+# Start specific service:   docker-compose up -d redis
+# Stop services:            docker-compose down
+# View logs:                docker-compose logs -f redis
+# Check status:             docker-compose ps
+# Redis CLI:                docker-compose exec redis redis-cli -a redis123
+# PostgreSQL CLI:           docker-compose exec postgres psql -U postgres -d cloudbill
+# Remove everything:        docker-compose down -v (includes volumes!)
 # ============================================================================
