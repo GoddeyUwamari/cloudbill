@@ -1,6 +1,6 @@
 # ============================================================================
 # CloudBill - Docker Compose Configuration
-# Phase 2: PostgreSQL + Redis
+# Phase 3: PostgreSQL + Redis + Auth Service
 # ============================================================================
 # This file defines our Docker services. PostgreSQL for data, Redis for caching.
 # We use version 3.8 which is stable and well-supported.
@@ -124,6 +124,69 @@ services:
     networks:
       - cloudbill-network
 
+  # --------------------------------------------------------------------------
+  # Auth Service - Authentication & Authorization Microservice
+  # --------------------------------------------------------------------------
+  auth-service:
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-auth
+    
+    # Build configuration: Build from Dockerfile
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+    
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes auth service on host port 3001
+    ports:
+      - "3001:3001"
+    
+    # Environment variables: Configure Auth Service
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=3001
+      
+      # Database connection (uses Docker network service names)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-cloudbill}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      
+      # Redis connection (uses Docker network service names)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+      
+      # JWT configuration
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
+      - JWT_EXPIRES_IN=15m
+      - JWT_REFRESH_EXPIRES_IN=7d
+    
+    # Dependencies: Wait for database and cache to be healthy before starting
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    # Health check: Monitor if Auth Service is responding
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+    
+    # Networks: Same network for communication with database and cache
+    networks:
+      - cloudbill-network
+
 # ============================================================================
 # VOLUMES - Named volumes for data persistence
 # ============================================================================
@@ -150,10 +213,12 @@ networks:
 # USAGE EXAMPLES:
 # ============================================================================
 # Start all services:       docker-compose up -d
-# Start specific service:   docker-compose up -d redis
+# Start specific service:   docker-compose up -d auth-service
 # Stop services:            docker-compose down
-# View logs:                docker-compose logs -f redis
+# View logs:                docker-compose logs -f auth-service
 # Check status:             docker-compose ps
+# Build auth service:       docker-compose build auth-service
+# Rebuild and start:        docker-compose up -d --build auth-service
 # Redis CLI:                docker-compose exec redis redis-cli -a redis123
 # PostgreSQL CLI:           docker-compose exec postgres psql -U postgres -d cloudbill
 # Remove everything:        docker-compose down -v (includes volumes!)

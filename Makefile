@@ -5,21 +5,33 @@
 # Each command shows the actual Docker command being executed
 # This helps you learn what's happening behind the scenes
 
-.PHONY: help docker-start docker-stop docker-restart docker-status docker-logs \
+.PHONY: help docker-start docker-stop docker-restart docker-status docker-logs docker-build \
         docker-db-start docker-db-stop docker-db-restart docker-db-status docker-db-logs docker-db-connect docker-db-migrate docker-db-clean docker-db-reset docker-db-backup docker-db-health \
         docker-redis-start docker-redis-stop docker-redis-restart docker-redis-status docker-redis-logs docker-redis-cli docker-redis-ping docker-redis-clean \
+        docker-auth-start docker-auth-stop docker-auth-restart docker-auth-status docker-auth-logs docker-auth-build docker-auth-rebuild docker-auth-shell docker-auth-clean \
         docker-clean docker-reset docker-learn
 
 # Default target: Show help
 help:
 	@echo "╔════════════════════════════════════════════════════════════════╗"
-	@echo "║       CloudBill - Docker Commands (Phase 2: PostgreSQL + Redis)║"
+	@echo "║   CloudBill - Docker Commands (Phase 3: Full Stack)           ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "🚀 Quick Start:"
-	@echo "  make docker-start           - Start ALL services (PostgreSQL + Redis)"
+	@echo "  make docker-start           - Start ALL services (DB + Redis + Auth)"
 	@echo "  make docker-stop            - Stop ALL services"
 	@echo "  make docker-status          - Check status of ALL services"
+	@echo "  make docker-build           - Build all service images"
+	@echo ""
+	@echo "🔐 Auth Service Commands:"
+	@echo "  make docker-auth-start      - Start Auth Service container"
+	@echo "  make docker-auth-stop       - Stop Auth Service container"
+	@echo "  make docker-auth-restart    - Restart Auth Service container"
+	@echo "  make docker-auth-status     - Show Auth Service status"
+	@echo "  make docker-auth-logs       - View Auth Service logs (live)"
+	@echo "  make docker-auth-build      - Build Auth Service image"
+	@echo "  make docker-auth-rebuild    - Rebuild Auth Service (force)"
+	@echo "  make docker-auth-shell      - Open shell in Auth Service container"
 	@echo ""
 	@echo "📦 PostgreSQL Commands:"
 	@echo "  make docker-db-start        - Start PostgreSQL container"
@@ -46,18 +58,19 @@ help:
 	@echo "  make docker-reset           - Complete reset (removes ALL data!)"
 	@echo "  make docker-db-clean        - Clean PostgreSQL only"
 	@echo "  make docker-redis-clean     - Clean Redis only"
+	@echo "  make docker-auth-clean      - Clean Auth Service only"
 	@echo ""
 	@echo "📚 Learning:"
 	@echo "  make docker-learn           - Open Docker learning guide"
 	@echo ""
 
 # ----------------------------------------------------------------------------
-# Multi-Service Management (NEW!)
+# Multi-Service Management
 # ----------------------------------------------------------------------------
 
 # Start all services
 docker-start:
-	@echo "🚀 Starting ALL services (PostgreSQL + Redis)..."
+	@echo "🚀 Starting ALL services (PostgreSQL + Redis + Auth Service)..."
 	@echo "📝 Command: docker-compose up -d"
 	@docker-compose up -d
 	@echo ""
@@ -91,6 +104,87 @@ docker-logs:
 	@echo "📝 Command: docker-compose logs -f"
 	@echo ""
 	@docker-compose logs -f
+
+# Build all service images
+docker-build:
+	@echo "🔨 Building all service images..."
+	@echo "📝 Command: docker-compose build"
+	@docker-compose build
+	@echo "✅ All images built!"
+
+# ----------------------------------------------------------------------------
+# Auth Service Commands
+# ----------------------------------------------------------------------------
+
+# Start Auth Service container
+docker-auth-start:
+	@echo "🚀 Starting Auth Service container..."
+	@echo "📝 Command: docker-compose up -d auth-service"
+	@docker-compose up -d auth-service
+	@echo ""
+	@echo "✅ Auth Service started!"
+	@echo "🔍 Run 'make docker-auth-status' to check health"
+
+# Stop Auth Service container
+docker-auth-stop:
+	@echo "🛑 Stopping Auth Service container..."
+	@echo "📝 Command: docker-compose stop auth-service"
+	@docker-compose stop auth-service
+	@echo "✅ Auth Service stopped!"
+
+# Restart Auth Service container
+docker-auth-restart:
+	@echo "🔄 Restarting Auth Service container..."
+	@echo "📝 Command: docker-compose restart auth-service"
+	@docker-compose restart auth-service
+	@echo "✅ Auth Service restarted!"
+
+# Show Auth Service container status
+docker-auth-status:
+	@echo "📊 Auth Service Container Status:"
+	@echo "📝 Command: docker-compose ps auth-service"
+	@echo ""
+	@docker-compose ps auth-service
+	@echo ""
+	@echo "📝 Command: docker inspect cloudbill-auth --format='{{.State.Health.Status}}'"
+	@echo "Health: $$(docker inspect cloudbill-auth --format='{{.State.Health.Status}}' 2>/dev/null || echo 'Container not running')"
+
+# View Auth Service container logs (follow mode)
+docker-auth-logs:
+	@echo "📜 Viewing Auth Service logs (Ctrl+C to exit)..."
+	@echo "📝 Command: docker-compose logs -f auth-service"
+	@echo ""
+	@docker-compose logs -f auth-service
+
+# Build Auth Service image
+docker-auth-build:
+	@echo "🔨 Building Auth Service image..."
+	@echo "📝 Command: docker-compose build auth-service"
+	@docker-compose build auth-service
+	@echo "✅ Auth Service image built!"
+
+# Rebuild Auth Service image (no cache)
+docker-auth-rebuild:
+	@echo "🔨 Rebuilding Auth Service image (no cache)..."
+	@echo "📝 Command: docker-compose build --no-cache auth-service"
+	@docker-compose build --no-cache auth-service
+	@echo "✅ Auth Service image rebuilt!"
+
+# Open shell in Auth Service container
+docker-auth-shell:
+	@echo "🐚 Opening shell in Auth Service container..."
+	@echo "📝 Command: docker exec -it cloudbill-auth sh"
+	@echo ""
+	@echo "💡 Tip: Type 'exit' to leave the shell"
+	@echo ""
+	@docker exec -it cloudbill-auth sh
+
+# Stop and remove Auth Service container
+docker-auth-clean:
+	@echo "🧹 Cleaning up Auth Service container..."
+	@echo "📝 Command: docker-compose rm -s -f auth-service"
+	@docker-compose rm -s -f auth-service
+	@echo "✅ Auth Service container removed"
 
 # ----------------------------------------------------------------------------
 # PostgreSQL Commands
@@ -173,7 +267,7 @@ docker-db-clean:
 	@echo "✅ PostgreSQL container removed (data preserved in volume)"
 
 # ----------------------------------------------------------------------------
-# Redis Commands (NEW!)
+# Redis Commands
 # ----------------------------------------------------------------------------
 
 # Start Redis container in detached mode

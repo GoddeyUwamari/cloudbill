@@ -6,17 +6,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { queryOne, setTenantContext, getClient } from '../database/connection';
-import { Tenant, TenantStatus } from '../types';
+import { Tenant, TenantStatus, UserRole } from '../types';
 import {
   AuthenticationError,
   AuthorizationError,
   NotFoundError,
   asyncHandler,
 } from './error-handler';
-
-// ============================================================================
-// Extend Express Request Type
-// ============================================================================
 
 declare global {
   namespace Express {
@@ -307,7 +303,7 @@ export const setDatabaseTenantContext = asyncHandler(
 
     try {
       // Set tenant context for this connection
-      await setTenantContext(client, req.tenantId);
+      await setTenantContext(req.tenantId, client);
 
       logger.debug('Database tenant context set', { tenantId: req.tenantId });
 
@@ -344,7 +340,7 @@ export const validateUserTenant = asyncHandler(
     }
 
     // Super admins can access any tenant
-    if (req.user.role === 'SUPER_ADMIN') {
+    if (req.user.role === UserRole.SUPER_ADMIN) {
       logger.debug('Super admin accessing tenant', {
         userId: req.user.userId,
         tenantId: req.tenantId,

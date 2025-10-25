@@ -1,58 +1,66 @@
-# ============================================================================
-# Build Stage
-# ============================================================================
-FROM node:18-alpine AS builder
+# ==========================================
+# Stage 1: Builder - Build the application
+# ==========================================
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy root-level files needed for build
+COPY package.json ./
+COPY package-lock.json ./
 COPY tsconfig.json ./
 
-# Copy shared directory (needed for compilation)
-COPY ../../shared ./shared
+# Copy entire shared folder (source)
+COPY shared ./shared
 
-# Install dependencies
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Copy auth-service
+COPY services/auth-service ./services/auth-service
 
-# Copy source code
-COPY src ./src
+# Install ALL dependencies at root (includes @types/node, typescript, etc.)
+RUN npm ci
 
-# Build TypeScript
-RUN npm run build
+# Build shared library first
+RUN cd shared && npm run build
 
-# ============================================================================
-# Production Stage
-# ============================================================================
-FROM node:18-alpine
+# Build auth-service using Docker-specific tsconfig
+RUN cd services/auth-service && \
+    npx tsc --project tsconfig.docker.json
 
-# Install dumb-init for proper signal handling
+# ==========================================
+# Stage 2: Production - Create lean image
+# ==========================================
+FROM node:20-alpine AS production
+
+# Install dumb-init (proper signal handling)
 RUN apk add --no-cache dumb-init
 
-# Create non-root user
+# Create app user (security: don't run as root)
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy shared dist folder
+COPY --from=builder --chown=nodejs:nodejs /app/shared/dist ./shared/dist
 
-# Install production dependencies only
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Copy the entire compiled dist folder structure
+COPY --from=builder --chown=nodejs:nodejs /app/services/auth-service/dist ./dist
 
-# Copy built application from builder
-COPY --from=builder /app/dist ./dist
+# Copy package files from auth-service and root lock file
+COPY --from=builder --chown=nodejs:nodejs /app/services/auth-service/package.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/package-lock.json ./package-lock.json
 
-# Copy shared directory (runtime dependency)
-COPY --from=builder /app/shared ./shared
+# Install only production dependencies
+RUN npm ci --omit=dev
 
-# Change ownership to nodejs user
-RUN chown -R nodejs:nodejs /app
+# Copy shared dist to node_modules/@shared
+RUN mkdir -p node_modules/@shared && \
+    cp -r shared/dist/* node_modules/@shared/
+
+# Create logs directory with proper permissions
+RUN mkdir -p logs && chown -R nodejs:nodejs logs
 
 # Switch to non-root user
 USER nodejs
@@ -62,10 +70,10 @@ EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3001/health/live', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start application
-CMD ["node", "dist/index.js"]
+# Start the application
+CMD ["node", "dist/services/auth-service/src/index.js"]

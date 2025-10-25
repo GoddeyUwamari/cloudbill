@@ -6,24 +6,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { logger } from '../utils/logger';
-import { JwtPayload, UserRole, RequestContext } from '../types';
+import { JwtPayload, UserRole } from '../types';
 import {
   AuthenticationError,
   AuthorizationError,
   asyncHandler,
 } from './error-handler';
-
-// ============================================================================
-// Extend Express Request Type
-// ============================================================================
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: RequestContext;
-    }
-  }
-}
 
 // ============================================================================
 // Configuration
