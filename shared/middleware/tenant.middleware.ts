@@ -14,15 +14,6 @@ import {
   asyncHandler,
 } from './error-handler';
 
-declare global {
-  namespace Express {
-    interface Request {
-      tenant?: Tenant;
-      tenantId?: string;
-    }
-  }
-}
-
 // ============================================================================
 // Configuration
 // ============================================================================

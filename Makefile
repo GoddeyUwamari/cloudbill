@@ -9,19 +9,30 @@
         docker-db-start docker-db-stop docker-db-restart docker-db-status docker-db-logs docker-db-connect docker-db-migrate docker-db-clean docker-db-reset docker-db-backup docker-db-health \
         docker-redis-start docker-redis-stop docker-redis-restart docker-redis-status docker-redis-logs docker-redis-cli docker-redis-ping docker-redis-clean \
         docker-auth-start docker-auth-stop docker-auth-restart docker-auth-status docker-auth-logs docker-auth-build docker-auth-rebuild docker-auth-shell docker-auth-clean \
+        docker-gateway-start docker-gateway-stop docker-gateway-restart docker-gateway-status docker-gateway-logs docker-gateway-build docker-gateway-rebuild docker-gateway-shell docker-gateway-clean \
         docker-clean docker-reset docker-learn
 
 # Default target: Show help
 help:
 	@echo "╔════════════════════════════════════════════════════════════════╗"
-	@echo "║   CloudBill - Docker Commands (Phase 3: Full Stack)           ║"
+	@echo "║   CloudBill - Docker Commands (Phase 4: Full Stack)           ║"
 	@echo "╚════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "🚀 Quick Start:"
-	@echo "  make docker-start           - Start ALL services (DB + Redis + Auth)"
+	@echo "  make docker-start           - Start ALL services (DB + Redis + Auth + Gateway)"
 	@echo "  make docker-stop            - Stop ALL services"
 	@echo "  make docker-status          - Check status of ALL services"
 	@echo "  make docker-build           - Build all service images"
+	@echo ""
+	@echo "🌐 API Gateway Commands:"
+	@echo "  make docker-gateway-start   - Start API Gateway container"
+	@echo "  make docker-gateway-stop    - Stop API Gateway container"
+	@echo "  make docker-gateway-restart - Restart API Gateway container"
+	@echo "  make docker-gateway-status  - Show API Gateway status"
+	@echo "  make docker-gateway-logs    - View API Gateway logs (live)"
+	@echo "  make docker-gateway-build   - Build API Gateway image"
+	@echo "  make docker-gateway-rebuild - Rebuild API Gateway (force)"
+	@echo "  make docker-gateway-shell   - Open shell in API Gateway container"
 	@echo ""
 	@echo "🔐 Auth Service Commands:"
 	@echo "  make docker-auth-start      - Start Auth Service container"
@@ -59,6 +70,7 @@ help:
 	@echo "  make docker-db-clean        - Clean PostgreSQL only"
 	@echo "  make docker-redis-clean     - Clean Redis only"
 	@echo "  make docker-auth-clean      - Clean Auth Service only"
+	@echo "  make docker-gateway-clean   - Clean API Gateway only"
 	@echo ""
 	@echo "📚 Learning:"
 	@echo "  make docker-learn           - Open Docker learning guide"
@@ -70,7 +82,7 @@ help:
 
 # Start all services
 docker-start:
-	@echo "🚀 Starting ALL services (PostgreSQL + Redis + Auth Service)..."
+	@echo "🚀 Starting ALL services (PostgreSQL + Redis + Auth + Gateway)..."
 	@echo "📝 Command: docker-compose up -d"
 	@docker-compose up -d
 	@echo ""
@@ -111,6 +123,80 @@ docker-build:
 	@echo "📝 Command: docker-compose build"
 	@docker-compose build
 	@echo "✅ All images built!"
+
+# ----------------------------------------------------------------------------
+# API Gateway Commands
+# ----------------------------------------------------------------------------
+
+# Start API Gateway container
+docker-gateway-start:
+	@echo "🚀 Starting API Gateway container..."
+	@echo "📝 Command: docker-compose up -d api-gateway"
+	@docker-compose up -d api-gateway
+	@echo ""
+	@echo "✅ API Gateway started!"
+	@echo "🔍 Run 'make docker-gateway-status' to check health"
+
+# Stop API Gateway container
+docker-gateway-stop:
+	@echo "🛑 Stopping API Gateway container..."
+	@echo "📝 Command: docker-compose stop api-gateway"
+	@docker-compose stop api-gateway
+	@echo "✅ API Gateway stopped!"
+
+# Restart API Gateway container
+docker-gateway-restart:
+	@echo "🔄 Restarting API Gateway container..."
+	@echo "📝 Command: docker-compose restart api-gateway"
+	@docker-compose restart api-gateway
+	@echo "✅ API Gateway restarted!"
+
+# Show API Gateway container status
+docker-gateway-status:
+	@echo "📊 API Gateway Container Status:"
+	@echo "📝 Command: docker-compose ps api-gateway"
+	@echo ""
+	@docker-compose ps api-gateway
+	@echo ""
+	@echo "📝 Command: docker inspect cloudbill-gateway --format='{{.State.Health.Status}}'"
+	@echo "Health: $$(docker inspect cloudbill-gateway --format='{{.State.Health.Status}}' 2>/dev/null || echo 'Container not running')"
+
+# View API Gateway container logs (follow mode)
+docker-gateway-logs:
+	@echo "📜 Viewing API Gateway logs (Ctrl+C to exit)..."
+	@echo "📝 Command: docker-compose logs -f api-gateway"
+	@echo ""
+	@docker-compose logs -f api-gateway
+
+# Build API Gateway image
+docker-gateway-build:
+	@echo "🔨 Building API Gateway image..."
+	@echo "📝 Command: docker-compose build api-gateway"
+	@docker-compose build api-gateway
+	@echo "✅ API Gateway image built!"
+
+# Rebuild API Gateway image (no cache)
+docker-gateway-rebuild:
+	@echo "🔨 Rebuilding API Gateway image (no cache)..."
+	@echo "📝 Command: docker-compose build --no-cache api-gateway"
+	@docker-compose build --no-cache api-gateway
+	@echo "✅ API Gateway image rebuilt!"
+
+# Open shell in API Gateway container
+docker-gateway-shell:
+	@echo "🐚 Opening shell in API Gateway container..."
+	@echo "📝 Command: docker exec -it cloudbill-gateway sh"
+	@echo ""
+	@echo "💡 Tip: Type 'exit' to leave the shell"
+	@echo ""
+	@docker exec -it cloudbill-gateway sh
+
+# Stop and remove API Gateway container
+docker-gateway-clean:
+	@echo "🧹 Cleaning up API Gateway container..."
+	@echo "📝 Command: docker-compose rm -s -f api-gateway"
+	@docker-compose rm -s -f api-gateway
+	@echo "✅ API Gateway container removed"
 
 # ----------------------------------------------------------------------------
 # Auth Service Commands

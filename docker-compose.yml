@@ -1,6 +1,6 @@
 # ============================================================================
 # CloudBill - Docker Compose Configuration
-# Phase 3: PostgreSQL + Redis + Auth Service
+# Phase 4: PostgreSQL + Redis + Auth Service + API Gateway
 # ============================================================================
 # This file defines our Docker services. PostgreSQL for data, Redis for caching.
 # We use version 3.8 which is stable and well-supported.
@@ -187,6 +187,59 @@ services:
     networks:
       - cloudbill-network
 
+  # --------------------------------------------------------------------------
+  # API Gateway - Entry point for all client requests
+  # --------------------------------------------------------------------------
+  api-gateway:
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-gateway
+    
+    # Build configuration: Build from Dockerfile
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+    
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes API Gateway on host port 8080
+    ports:
+      - "8080:8080"
+    
+    # Environment variables: Configure API Gateway
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=8080
+      
+      # Service URLs (uses Docker network service names)
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - BILLING_SERVICE_URL=http://billing-service:3002
+      - PAYMENT_SERVICE_URL=http://payment-service:3003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3004
+      - ANALYTICS_SERVICE_URL=http://analytics-service:3005
+      
+      # CORS configuration
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+    
+    # Dependencies: Wait for auth service to be healthy before starting
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    
+    # Health check: Monitor if API Gateway is responding
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+    
+    # Networks: Same network for communication with all services
+    networks:
+      - cloudbill-network
+
 # ============================================================================
 # VOLUMES - Named volumes for data persistence
 # ============================================================================
@@ -203,7 +256,7 @@ volumes:
 # NETWORKS - Custom networks for service communication
 # ============================================================================
 # Services on the same network can communicate using service names as hostnames
-# Example: postgres:5432, redis:6379 (internal ports)
+# Example: postgres:5432, redis:6379, auth-service:3001 (internal ports)
 networks:
   cloudbill-network:
     driver: bridge
@@ -213,12 +266,13 @@ networks:
 # USAGE EXAMPLES:
 # ============================================================================
 # Start all services:       docker-compose up -d
-# Start specific service:   docker-compose up -d auth-service
+# Start specific service:   docker-compose up -d api-gateway
 # Stop services:            docker-compose down
-# View logs:                docker-compose logs -f auth-service
+# View logs:                docker-compose logs -f api-gateway
 # Check status:             docker-compose ps
-# Build auth service:       docker-compose build auth-service
-# Rebuild and start:        docker-compose up -d --build auth-service
+# Build gateway:            docker-compose build api-gateway
+# Rebuild and start:        docker-compose up -d --build api-gateway
+# Gateway shell:            docker-compose exec api-gateway sh
 # Redis CLI:                docker-compose exec redis redis-cli -a redis123
 # PostgreSQL CLI:           docker-compose exec postgres psql -U postgres -d cloudbill
 # Remove everything:        docker-compose down -v (includes volumes!)
