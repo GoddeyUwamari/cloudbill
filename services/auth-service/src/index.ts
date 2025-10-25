@@ -1,12 +1,44 @@
+// ============================================================================
+// Load Environment Variables FIRST
+// ============================================================================
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// ============================================================================
+// Application Imports
+// ============================================================================
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import { logger } from '@shared/utils/logger';
-import { errorHandler, notFoundHandler, setupErrorHandlers } from '@shared/middleware/error-handler';
+import { errorHandler, notFoundHandler } from '@shared/middleware/error-handler';
 import { authDatabase } from './config/database.config';
+import { connectRedis, disconnectRedis, checkRedisHealth } from '@shared/cache/redis-connection';
 import authRoutes from './routes/auth.routes';
+
+
+// TEMPORARY: Override error handlers to see actual error
+process.on('uncaughtException', (error: Error) => {
+  console.error('=== UNCAUGHT EXCEPTION ===');
+  console.error('Name:', error.name);
+  console.error('Message:', error.message);
+  console.error('Stack:', error.stack);
+  console.error('=========================');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('=== UNHANDLED REJECTION ===');
+  console.error('Reason:', reason);
+  console.error('===========================');
+  process.exit(1);
+});
+
+/**
+ * Auth Service - Main Application
 
 /**
  * Auth Service - Main Application
@@ -88,16 +120,21 @@ app.use((req: Request, res: Response, next) => {
 
 app.get('/health', async (_req: Request, res: Response) => {
   const dbHealth = await authDatabase.healthCheck();
+  const redisHealth = await checkRedisHealth();
   
   const healthStatus = {
     service: SERVICE_NAME,
-    status: dbHealth.status === 'healthy' ? 'healthy' : 'degraded',
+    status: (dbHealth.status === 'healthy' && redisHealth) ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: NODE_ENV,
     version: process.env.npm_package_version || '1.0.0',
     dependencies: {
       database: dbHealth,
+      redis: {
+        status: redisHealth ? 'healthy' : 'unhealthy',
+        connected: redisHealth,
+      },
     },
   };
 
@@ -116,8 +153,9 @@ app.get('/health/live', (_req: Request, res: Response) => {
 app.get('/health/ready', async (_req: Request, res: Response) => {
   try {
     const dbHealth = await authDatabase.healthCheck();
+    const redisHealth = await checkRedisHealth();
     
-    if (dbHealth.status === 'healthy') {
+    if (dbHealth.status === 'healthy' && redisHealth) {
       res.status(200).json({
         service: SERVICE_NAME,
         status: 'ready',
@@ -127,7 +165,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
       res.status(503).json({
         service: SERVICE_NAME,
         status: 'not ready',
-        reason: 'Database not healthy',
+        reason: !dbHealth.status ? 'Database not healthy' : 'Redis not healthy',
         timestamp: new Date().toISOString(),
       });
     }
@@ -191,16 +229,37 @@ async function initializeDatabase(): Promise<void> {
 }
 
 // ============================================================================
+// Redis Initialization
+// ============================================================================
+
+async function initializeRedis(): Promise<void> {
+  try {
+    logger.info('Initializing Redis connection...', { service: SERVICE_NAME });
+    await connectRedis();
+    logger.info('Redis connection initialized successfully', { service: SERVICE_NAME });
+  } catch (error) {
+    logger.error('Failed to initialize Redis connection', {
+      service: SERVICE_NAME,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    throw error;
+  }
+}
+
+// ============================================================================
 // Server Startup
 // ============================================================================
 
 async function startServer(): Promise<void> {
   try {
     // Setup process-level error handlers
-    setupErrorHandlers();
+    //  setupErrorHandlers();
 
     // Initialize database
     await initializeDatabase();
+
+    // Initialize Redis
+    await initializeRedis();
 
     // Start HTTP server
     const server = app.listen(PORT, () => {
@@ -227,6 +286,10 @@ async function startServer(): Promise<void> {
           // Close database connections
           await authDatabase.close();
           logger.info('Database connections closed', { service: SERVICE_NAME });
+
+          // Close Redis connection
+          await disconnectRedis();
+          logger.info('Redis connection closed', { service: SERVICE_NAME });
 
           logger.info('Graceful shutdown completed', { service: SERVICE_NAME });
           process.exit(0);

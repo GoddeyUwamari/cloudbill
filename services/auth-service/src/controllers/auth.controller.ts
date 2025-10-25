@@ -6,6 +6,8 @@ import {
   asyncHandler,
 } from '@shared/middleware/error-handler';
 import { AuthService } from '../services/auth.service';
+import { getRedisClient } from '@shared/cache/redis-connection';
+import { randomBytes } from 'crypto';
 
 /**
  * Authentication Controller
@@ -41,8 +43,40 @@ export class AuthController {
         tenantName,
       });
 
+      // Generate session ID
+      const sessionId = randomBytes(32).toString('hex');
+
+      // Store session in Redis (30 days TTL)
+      const sessionData = {
+        userId: result.user.id,
+        tenantId: result.user.tenantId,
+        email: result.user.email,
+        role: result.user.role,
+        createdAt: new Date().toISOString(),
+      };
+
+      await getRedisClient().setex(
+        `session:${sessionId}`,
+        30 * 24 * 60 * 60, // 30 days in seconds
+        JSON.stringify(sessionData)
+      );
+
+      logger.info('Session created in Redis', {
+        sessionId,
+        userId: result.user.id,
+        tenantId: result.user.tenantId,
+      });
+
       // Set refresh token as HTTP-only cookie
       res.cookie('refreshToken', result.tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      // Set session ID cookie
+      res.cookie('sessionId', sessionId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -55,6 +89,7 @@ export class AuthController {
           user: result.user,
           accessToken: result.tokens.accessToken,
           expiresIn: result.tokens.expiresIn,
+          sessionId, // Include session ID in response
         },
         message: 'User registered successfully',
         timestamp: new Date().toISOString(),
@@ -94,8 +129,43 @@ export class AuthController {
       // Login user
       const result = await AuthService.login({ email, password }, tenantId);
 
+      // Generate session ID
+      const sessionId = randomBytes(32).toString('hex');
+
+      // Store session in Redis (30 days TTL)
+      const sessionData = {
+        userId: result.user.id,
+        tenantId: result.user.tenantId,
+        email: result.user.email,
+        role: result.user.role,
+        loginAt: new Date().toISOString(),
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      };
+
+      await getRedisClient().setex(
+        `session:${sessionId}`,
+        30 * 24 * 60 * 60, // 30 days in seconds
+        JSON.stringify(sessionData)
+      );
+
+      logger.info('Session created in Redis on login', {
+        sessionId,
+        userId: result.user.id,
+        tenantId: result.user.tenantId,
+        ipAddress: req.ip,
+      });
+
       // Set refresh token as HTTP-only cookie
       res.cookie('refreshToken', result.tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      // Set session ID cookie
+      res.cookie('sessionId', sessionId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -108,6 +178,7 @@ export class AuthController {
           user: result.user,
           accessToken: result.tokens.accessToken,
           expiresIn: result.tokens.expiresIn,
+          sessionId, // Include session ID in response
         },
         message: 'Login successful',
         timestamp: new Date().toISOString(),
@@ -172,12 +243,33 @@ export class AuthController {
       const userId = req.user?.userId;
       const tenantId = req.user?.tenantId;
 
+      // Get session ID from cookie
+      const sessionId = req.cookies?.sessionId;
+
       if (userId && tenantId) {
         await AuthService.logout(userId, tenantId);
       }
 
+      // Delete session from Redis
+      if (sessionId) {
+        const deleted = await getRedisClient().del(`session:${sessionId}`);
+        logger.info('Session deleted from Redis on logout', {
+          sessionId,
+          userId,
+          tenantId,
+          deleted: deleted > 0,
+        });
+      }
+
       // Clear refresh token cookie
       res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+      });
+
+      // Clear session ID cookie
+      res.clearCookie('sessionId', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -435,6 +527,37 @@ export class AuthController {
           service: 'auth-service',
           status: 'healthy',
           timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      res.status(200).json(response);
+    }
+  );
+
+  /**
+   * Get session info (for debugging)
+   * GET /api/auth/session
+   */
+  public static getSession = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const sessionId = req.cookies?.sessionId;
+
+      if (!sessionId) {
+        throw new ValidationError('No active session');
+      }
+
+      const sessionData = await getRedisClient().get(`session:${sessionId}`);
+
+      if (!sessionData) {
+        throw new ValidationError('Session not found or expired');
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          sessionId,
+          session: JSON.parse(sessionData),
         },
         timestamp: new Date().toISOString(),
       };
