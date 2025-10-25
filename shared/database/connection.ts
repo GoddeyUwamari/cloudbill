@@ -17,7 +17,8 @@ const poolConfig: PoolConfig = {
   connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000', 10),
   statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '30000', 10),
   query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT || '30000', 10),
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // FIXED: Explicitly set ssl to false for non-production environments
+  ssl: false,
 };
 
 let pool: Pool | null = null;
@@ -29,6 +30,7 @@ export const initializeDatabase = async (): Promise<void> => {
     console.log('Port:', poolConfig.port);
     console.log('Database:', poolConfig.database);
     console.log('User:', poolConfig.user);
+    console.log('SSL:', poolConfig.ssl);
     console.log('======================');
 
     pool = new Pool(poolConfig);
@@ -55,8 +57,6 @@ export const initializeDatabase = async (): Promise<void> => {
   } catch (error) {
     console.error('=== DATABASE ERROR ===');
     console.error('Full error:', error);
-    console.error('Error code:', (error as any)?.code);
-    console.error('Error message:', (error as any)?.message);
     console.error('======================');
     
     logger.error('Failed to initialize database connection pool', {
@@ -100,7 +100,6 @@ export const query = async <T = any>(text: string, params?: any[]): Promise<T[]>
 
 export const queryOne = async <T = any>(text: string, params?: any[]): Promise<T | null> => {
   const results = await query<T>(text, params);
-  // Fix: Explicitly check and return null instead of undefined
   return results.length > 0 && results[0] !== undefined ? results[0] : null;
 };
 
