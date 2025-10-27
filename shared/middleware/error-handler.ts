@@ -355,6 +355,13 @@ export const setupErrorHandlers = (): void => {
   logger.info('Error handlers initialized');
 };
 
+export class BusinessRuleError extends AppError {
+  constructor(message: string = 'Business rule violation') {
+    super(message, 422, 'BUSINESS_RULE_ERROR', true);
+    Object.setPrototypeOf(this, BusinessRuleError.prototype);
+  }
+}
+
 // ============================================================================
 // Export
 // ============================================================================
@@ -372,6 +379,7 @@ export default {
   AuthorizationError,
   NotFoundError,
   ConflictError,
+  BusinessRuleError,
   RateLimitError,
   DatabaseError,
   ExternalServiceError,

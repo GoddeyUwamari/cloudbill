@@ -144,7 +144,7 @@ export class SessionService {
       });
 
     } catch (error) {
-      logger.error('❌ Failed to create session:', error);
+      logger.error('❌ Failed to create session:', { error });
       throw new Error('Failed to create session in Redis');
     }
   }
@@ -184,7 +184,7 @@ export class SessionService {
       return sessionData;
 
     } catch (error) {
-      logger.error('❌ Failed to get session by access token:', error);
+      logger.error('❌ Failed to get session by access token:', { error });
       return null;
     }
   }
@@ -218,7 +218,7 @@ export class SessionService {
       return sessionData;
 
     } catch (error) {
-      logger.error('❌ Failed to get session by refresh token:', error);
+      logger.error('❌ Failed to get session by refresh token:', { error });
       return null;
     }
   }
@@ -266,7 +266,7 @@ export class SessionService {
       }
 
     } catch (error) {
-      logger.error('❌ Failed to update session activity:', error);
+      logger.error('❌ Failed to update session activity:', { error });
       // Don't throw - activity update failure shouldn't break the request
     }
   }
@@ -310,7 +310,7 @@ export class SessionService {
       logger.info('✅ Session deleted (logout successful)', { userId });
 
     } catch (error) {
-      logger.error('❌ Failed to delete session:', error);
+      logger.error('❌ Failed to delete session:', { error });
       throw new Error('Failed to logout');
     }
   }
@@ -365,7 +365,7 @@ export class SessionService {
       return accessTokens.length;
 
     } catch (error) {
-      logger.error('❌ Failed to delete all user sessions:', error);
+      logger.error('❌ Failed to delete all user sessions:', { error });
       throw new Error('Failed to logout from all devices');
     }
   }
@@ -393,7 +393,7 @@ export class SessionService {
       return count;
 
     } catch (error) {
-      logger.error('❌ Failed to get active sessions count:', error);
+      logger.error('❌ Failed to get active sessions count:', { error });
       return 0;
     }
   }
@@ -420,7 +420,7 @@ export class SessionService {
       return exists === 1;
 
     } catch (error) {
-      logger.error('❌ Failed to validate session:', error);
+      logger.error('❌ Failed to validate session:', { error });
       return false;
     }
   }
@@ -451,7 +451,7 @@ export class SessionService {
       return ttl;
 
     } catch (error) {
-      logger.error('❌ Failed to get session TTL:', error);
+      logger.error('❌ Failed to get session TTL:', { error });
       return -2;
     }
   }
