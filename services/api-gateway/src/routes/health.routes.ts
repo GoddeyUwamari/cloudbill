@@ -55,20 +55,21 @@ const checkServiceHealth = async (
  */
 router.get('/', async (_req: Request, res: Response) => {
   const startTime = Date.now();
-  
+
   try {
     // Check all services in parallel
     const serviceChecks = await Promise.all([
       checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE),
-      // Add more services here as they become available
-      // checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
-      // checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
+      checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
+      checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
+      checkServiceHealth('notification-service', SERVICES.NOTIFICATION_SERVICE),
     ]);
-    
+
     const services = {
       'auth-service': serviceChecks[0],
-      // 'billing-service': serviceChecks[1],
-      // 'payment-service': serviceChecks[2],
+      'billing-service': serviceChecks[1],
+      'payment-service': serviceChecks[2],
+      'notification-service': serviceChecks[3],
     };
     
     // Determine overall health
@@ -149,31 +150,40 @@ router.get('/live', (_req: Request, res: Response) => {
 router.get('/ready', async (_req: Request, res: Response) => {
   try {
     // Check if critical services are available
-    const authHealth = await checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE);
-    
-    const isReady = authHealth.status === 'healthy';
-    
+    const serviceChecks = await Promise.all([
+      checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE),
+      checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
+      checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
+      checkServiceHealth('notification-service', SERVICES.NOTIFICATION_SERVICE),
+    ]);
+
+    const services = {
+      'auth-service': serviceChecks[0],
+      'billing-service': serviceChecks[1],
+      'payment-service': serviceChecks[2],
+      'notification-service': serviceChecks[3],
+    };
+
+    // Gateway is ready if auth service is healthy (critical service)
+    const isReady = services['auth-service'].status === 'healthy';
+
     if (isReady) {
       res.status(200).json({
         status: 'ready',
         timestamp: new Date().toISOString(),
-        services: {
-          'auth-service': authHealth,
-        },
+        services,
       });
     } else {
       res.status(503).json({
         status: 'not ready',
         timestamp: new Date().toISOString(),
         reason: 'Critical services unavailable',
-        services: {
-          'auth-service': authHealth,
-        },
+        services,
       });
     }
   } catch (error: any) {
     logger.error('[Gateway] Readiness check error:', error);
-    
+
     res.status(503).json({
       status: 'not ready',
       timestamp: new Date().toISOString(),
@@ -190,15 +200,32 @@ router.get('/services', async (_req: Request, res: Response) => {
   try {
     const serviceChecks = await Promise.all([
       checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE),
+      checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
+      checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
+      checkServiceHealth('notification-service', SERVICES.NOTIFICATION_SERVICE),
     ]);
-    
+
     const services = [
       {
         name: 'auth-service',
         url: SERVICES.AUTH_SERVICE,
         ...serviceChecks[0],
       },
-      // Add more services as they become available
+      {
+        name: 'billing-service',
+        url: SERVICES.BILLING_SERVICE,
+        ...serviceChecks[1],
+      },
+      {
+        name: 'payment-service',
+        url: SERVICES.PAYMENT_SERVICE,
+        ...serviceChecks[2],
+      },
+      {
+        name: 'notification-service',
+        url: SERVICES.NOTIFICATION_SERVICE,
+        ...serviceChecks[3],
+      },
     ];
     
     res.json({

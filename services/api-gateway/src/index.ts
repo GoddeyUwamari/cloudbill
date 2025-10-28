@@ -125,9 +125,9 @@ app.get('/', (_req: Request, res: Response) => {
     endpoints: {
       health: '/health',
       auth: '/api/auth/*',
-      billing: '/api/billing/* (coming soon)',
-      payment: '/api/payment/* (coming soon)',
-      notification: '/api/notification/* (coming soon)',
+      billing: '/api/billing/*',
+      payments: '/api/payments/*',
+      notifications: '/api/notifications/*',
       analytics: '/api/analytics/* (coming soon)',
     },
   });
@@ -137,12 +137,21 @@ app.get('/', (_req: Request, res: Response) => {
 // PROXY HELPER FUNCTION
 // ==========================================
 
-const createServiceProxy = (serviceName: string, targetUrl: string): RequestHandler => {
+const createServiceProxy = (
+  serviceName: string,
+  targetUrl: string,
+  pathPrefix?: string
+): RequestHandler => {
   return createProxyMiddleware({
     target: targetUrl,
     changeOrigin: true,
     logLevel: NODE_ENV === 'development' ? 'info' : 'warn',
-    
+
+    // Rewrite path to strip the service prefix
+    pathRewrite: pathPrefix ? {
+      [`^${pathPrefix}`]: '',
+    } : undefined,
+
     // Add custom headers to forwarded requests
     onProxyReq: (proxyReq, req: any) => {
       // Re-stream parsed body for POST/PUT/PATCH requests
@@ -211,41 +220,40 @@ const createServiceProxy = (serviceName: string, targetUrl: string): RequestHand
 app.use(
   '/api/auth',
   authRateLimiter,
-  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE)
+  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE, '/api/auth')
 );
 
 // ==========================================
-// FUTURE SERVICE ROUTES (Placeholder)
+// BILLING SERVICE ROUTES
 // ==========================================
 
-// Billing Service - Coming soon
-app.use('/api/billing', (_req: Request, res: Response) => {
-  res.status(503).json({
-    error: 'Service Not Available',
-    message: 'Billing service is not yet implemented.',
-    comingSoon: true,
-  });
-});
+app.use(
+  '/api/billing',
+  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE, '/api/billing')
+);
 
-// Payment Service - Coming soon
-app.use('/api/payment', (_req: Request, res: Response) => {
-  res.status(503).json({
-    error: 'Service Not Available',
-    message: 'Payment service is not yet implemented.',
-    comingSoon: true,
-  });
-});
+// ==========================================
+// PAYMENT SERVICE ROUTES
+// ==========================================
 
-// Notification Service - Coming soon
-app.use('/api/notification', (_req: Request, res: Response) => {
-  res.status(503).json({
-    error: 'Service Not Available',
-    message: 'Notification service is not yet implemented.',
-    comingSoon: true,
-  });
-});
+app.use(
+  '/api/payments',
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE, '/api/payments')
+);
 
-// Analytics Service - Coming soon
+// ==========================================
+// NOTIFICATION SERVICE ROUTES
+// ==========================================
+
+app.use(
+  '/api/notifications',
+  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE, '/api/notifications')
+);
+
+// ==========================================
+// ANALYTICS SERVICE ROUTES (Coming soon)
+// ==========================================
+
 app.use('/api/analytics', (_req: Request, res: Response) => {
   res.status(503).json({
     error: 'Service Not Available',
@@ -286,16 +294,21 @@ const server = app.listen(PORT, () => {
   logger.info(`💓 Health Check: http://localhost:${PORT}/health`);
   logger.info('');
   logger.info('📡 Registered Services:');
-  logger.info(`   └─ Auth Service: ${SERVICES.AUTH_SERVICE}`);
+  logger.info(`   └─ Auth Service:         ${SERVICES.AUTH_SERVICE}`);
+  logger.info(`   └─ Billing Service:      ${SERVICES.BILLING_SERVICE}`);
+  logger.info(`   └─ Payment Service:      ${SERVICES.PAYMENT_SERVICE}`);
+  logger.info(`   └─ Notification Service: ${SERVICES.NOTIFICATION_SERVICE}`);
   logger.info('');
   logger.info('🛣️  Available Routes:');
-  logger.info('   └─ GET  /                    - Gateway info');
-  logger.info('   └─ GET  /health              - Health check');
-  logger.info('   └─ POST /api/auth/register   - User registration');
-  logger.info('   └─ POST /api/auth/login      - User login');
-  logger.info('   └─ POST /api/auth/refresh    - Refresh token');
-  logger.info('   └─ GET  /api/auth/me         - Get user profile (protected)');
-  logger.info('   └─ POST /api/auth/logout     - Logout (protected)');
+  logger.info('   └─ GET  /                       - Gateway info');
+  logger.info('   └─ GET  /health                 - Health check (all services)');
+  logger.info('   └─ GET  /health/live            - Liveness probe');
+  logger.info('   └─ GET  /health/ready           - Readiness probe');
+  logger.info('   └─ GET  /health/services        - Detailed service health');
+  logger.info('   └─ ALL  /api/auth/*             - Auth Service');
+  logger.info('   └─ ALL  /api/billing/*          - Billing Service');
+  logger.info('   └─ ALL  /api/payments/*         - Payment Service');
+  logger.info('   └─ ALL  /api/notifications/*    - Notification Service');
   logger.info('═══════════════════════════════════════════');
 });
 

@@ -119,7 +119,7 @@ export const connectRedis = async (): Promise<Redis> => {
      * 'error' event: Fired on connection errors
      * Logs error but doesn't crash the app (retryStrategy handles reconnection)
      */
-    redisClient.on('error', (error) => {
+    redisClient.on('error', (error: any) => {
       logger.error('❌ Redis error:', {
         message: error.message,
       });

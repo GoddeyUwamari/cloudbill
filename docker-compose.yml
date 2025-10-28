@@ -1,6 +1,6 @@
 # ============================================================================
 # CloudBill - Docker Compose Configuration
-# Phase 4: PostgreSQL + Redis + Auth Service + API Gateway
+# Phase 5: All Core Services (PostgreSQL + Redis + Auth + Payment + Notification + API Gateway)
 # ============================================================================
 # This file defines our Docker services. PostgreSQL for data, Redis for caching.
 # We use version 3.8 which is stable and well-supported.
@@ -188,6 +188,67 @@ services:
       - cloudbill-network
 
   # --------------------------------------------------------------------------
+  # Billing Service - Subscription management, invoicing, usage tracking
+  # --------------------------------------------------------------------------
+  billing-service:
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-billing
+
+    # Build configuration: Build from Dockerfile
+    build:
+      context: .
+      dockerfile: services/billing-service/Dockerfile
+
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes billing service on host port 3002
+    ports:
+      - "3002:3002"
+
+    # Environment variables: Configure Billing Service
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=3002
+
+      # Database connection (uses Docker network service names)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-cloudbill}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection (uses Docker network service names)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+
+      # JWT configuration (must match across services)
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
+
+    # Dependencies: Wait for database and cache to be healthy before starting
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    # Health check: Monitor if Billing Service is responding
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+    # Networks: Same network for communication with database and cache
+    networks:
+      - cloudbill-network
+
+  # --------------------------------------------------------------------------
   # Payment Service - Payment processing & Stripe integration
   # --------------------------------------------------------------------------
   payment-service:
@@ -255,6 +316,83 @@ services:
       - cloudbill-network
 
   # --------------------------------------------------------------------------
+  # Notification Service - Email, SMS, and webhook notifications
+  # --------------------------------------------------------------------------
+  notification-service:
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-notification
+
+    # Build configuration: Build from Dockerfile
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes notification service on host port 3004
+    ports:
+      - "3004:3004"
+
+    # Environment variables: Configure Notification Service
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=3004
+
+      # Database connection (uses Docker network service names)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-cloudbill}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection (uses Docker network service names)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+
+      # JWT configuration (must match across services)
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
+
+      # Email configuration (SMTP)
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER:-your-email@example.com}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-your-email-password}
+      - EMAIL_FROM=${EMAIL_FROM:-noreply@cloudbill.com}
+
+      # SMS configuration (Twilio)
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-your_twilio_account_sid}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-your_twilio_auth_token}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-+1234567890}
+
+      # Webhook configuration
+      - WEBHOOK_TIMEOUT_MS=${WEBHOOK_TIMEOUT_MS:-30000}
+      - WEBHOOK_MAX_RETRIES=${WEBHOOK_MAX_RETRIES:-3}
+
+    # Dependencies: Wait for database and cache to be healthy before starting
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    # Health check: Monitor if Notification Service is responding
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3004/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+    # Networks: Same network for communication with database and cache
+    networks:
+      - cloudbill-network
+
+  # --------------------------------------------------------------------------
   # API Gateway - Entry point for all client requests
   # --------------------------------------------------------------------------
   api-gateway:
@@ -290,11 +428,15 @@ services:
       # CORS configuration
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
     
-    # Dependencies: Wait for auth and payment services to be healthy before starting
+    # Dependencies: Wait for auth, billing, payment, and notification services to be healthy before starting
     depends_on:
       auth-service:
         condition: service_healthy
+      billing-service:
+        condition: service_healthy
       payment-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     
     # Health check: Monitor if API Gateway is responding
