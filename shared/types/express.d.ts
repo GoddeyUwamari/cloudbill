@@ -2,14 +2,14 @@
  * Express type augmentation for shared middleware
  */
 
-import { Tenant, UserRole, RequestContext } from './index';
+import { Tenant, AuthenticatedUser } from './index';
 
 declare global {
   namespace Express {
     interface Request {
       // User authentication context
-      user?: RequestContext;
-      
+      user?: AuthenticatedUser;
+
       // Tenant context
       tenant?: Tenant;
       tenantId?: string;

@@ -2,19 +2,13 @@
  * Express type augmentation for Billing Service
  */
 
-import { Tenant, UserRole } from '@shared/types';
+import { Tenant, AuthenticatedUser } from '@shared/types';
 
 declare global {
   namespace Express {
     interface Request {
       // User authentication context
-      user?: {
-        userId: string;
-        tenantId: string;
-        role: UserRole;
-        ip?: string;
-        userAgent?: string;
-      };
+      user?: AuthenticatedUser;
 
       // Tenant context
       tenant?: Tenant;

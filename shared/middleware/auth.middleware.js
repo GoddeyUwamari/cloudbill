@@ -92,9 +92,9 @@ exports.requireAuth = (0, error_handler_1.asyncHandler)(async (req, _res, next) 
     const decoded = (0, exports.verifyAccessToken)(token);
     req.user = {
         userId: decoded.userId,
+        email: decoded.email,
         role: decoded.role,
         tenantId: decoded.tenantId,
-        ip: req.ip,
         userAgent: req.get('user-agent'),
     };
     logger_1.logger.debug('User authenticated', {
@@ -112,9 +112,9 @@ exports.optionalAuth = (0, error_handler_1.asyncHandler)(async (req, _res, next)
             const decoded = (0, exports.verifyAccessToken)(token);
             req.user = {
                 userId: decoded.userId,
+                email: decoded.email,
                 role: decoded.role,
                 tenantId: decoded.tenantId,
-                ip: req.ip,
                 userAgent: req.get('user-agent'),
             };
             logger_1.logger.debug('Optional auth: User authenticated', {

@@ -6,7 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { logger } from '../utils/logger';
-import { JwtPayload, UserRole } from '../types';
+import { JwtPayload, UserRole, AuthenticatedUser } from '../types';
 import {
   AuthenticationError,
   AuthorizationError,
@@ -149,11 +149,11 @@ export const requireAuth = asyncHandler(
     // Attach user context to request
     req.user = {
       userId: decoded.userId,
+      email: decoded.email,
       role: decoded.role,
       tenantId: decoded.tenantId,
-      ip: req.ip,
       userAgent: req.get('user-agent'),
-    };
+    } as AuthenticatedUser;
 
     logger.debug('User authenticated', {
       userId: decoded.userId,
@@ -176,14 +176,14 @@ export const optionalAuth = asyncHandler(
     if (token) {
       try {
         const decoded = verifyAccessToken(token);
-        
+
         req.user = {
           userId: decoded.userId,
+          email: decoded.email,
           role: decoded.role,
           tenantId: decoded.tenantId,
-          ip: req.ip,
           userAgent: req.get('user-agent'),
-        };
+        } as AuthenticatedUser;
 
         logger.debug('Optional auth: User authenticated', {
           userId: decoded.userId,

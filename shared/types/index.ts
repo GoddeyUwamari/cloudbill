@@ -359,6 +359,18 @@ export interface RequestContext {
   userAgent?: string;
 }
 
+/**
+ * Authenticated user object attached to Express request
+ * Used by auth middleware to provide user context
+ */
+export interface AuthenticatedUser {
+  userId: UUID;
+  email: string;
+  role: UserRole;
+  tenantId: UUID;
+  userAgent?: string;
+}
+
 // ============================================================================
 // Common Filters
 // ============================================================================

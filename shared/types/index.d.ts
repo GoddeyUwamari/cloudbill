@@ -272,6 +272,13 @@ export interface RequestContext {
     ip?: string;
     userAgent?: string;
 }
+export interface AuthenticatedUser {
+    userId: UUID;
+    email: string;
+    role: UserRole;
+    tenantId: UUID;
+    userAgent?: string;
+}
 export interface DateRangeFilter {
     startDate?: Timestamp;
     endDate?: Timestamp;
