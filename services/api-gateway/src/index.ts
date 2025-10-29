@@ -16,7 +16,8 @@ import { SERVICES } from './config/services.config';
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || '8080';
+const port = parseInt(PORT, 10) || 8080;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // ==========================================
@@ -284,14 +285,14 @@ app.use(errorHandler);
 // SERVER STARTUP
 // ==========================================
 
-const server = app.listen(PORT, () => {
+const server = app.listen(port, '0.0.0.0', () => {
   logger.info('═══════════════════════════════════════════');
   logger.info('🚀 CloudBill API Gateway Started');
   logger.info('═══════════════════════════════════════════');
-  logger.info(`📍 Port: ${PORT}`);
+  logger.info(`📍 Port: ${port}`);
   logger.info(`🌍 Environment: ${NODE_ENV}`);
-  logger.info(`🔗 Base URL: http://localhost:${PORT}`);
-  logger.info(`💓 Health Check: http://localhost:${PORT}/health`);
+  logger.info(`🔗 Base URL: http://localhost:${port}`);
+  logger.info(`💓 Health Check: http://localhost:${port}/health`);
   logger.info('');
   logger.info('📡 Registered Services:');
   logger.info(`   └─ Auth Service:         ${SERVICES.AUTH_SERVICE}`);

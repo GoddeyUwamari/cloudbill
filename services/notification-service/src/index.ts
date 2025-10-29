@@ -29,7 +29,8 @@ import apiRoutes from './routes/index';
 // Environment Configuration
 // ============================================================================
 
-const PORT = process.env.NOTIFICATION_SERVICE_PORT || process.env.PORT || 3004;
+const PORT = process.env.NOTIFICATION_SERVICE_PORT || process.env.PORT || '3004';
+const port = parseInt(PORT, 10) || 3004;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SERVICE_NAME = 'notification-service';
 
@@ -270,10 +271,10 @@ async function startServer(): Promise<void> {
     await initializeNotificationServices();
 
     // Start HTTP server
-    const server = app.listen(PORT, () => {
+    const server = app.listen(port, '0.0.0.0', () => {
       logger.info(`${SERVICE_NAME} started successfully`, {
         service: SERVICE_NAME,
-        port: PORT,
+        port: port,
         environment: NODE_ENV,
         nodeVersion: process.version,
         pid: process.pid,

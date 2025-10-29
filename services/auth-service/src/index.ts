@@ -49,7 +49,8 @@ process.on('unhandledRejection', (reason: any) => {
 // Environment Configuration
 // ============================================================================
 
-const PORT = process.env.AUTH_SERVICE_PORT || process.env.PORT || 3001;
+const PORT = process.env.AUTH_SERVICE_PORT || process.env.PORT || '3001';
+const port = parseInt(PORT, 10) || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SERVICE_NAME = 'auth-service';
 
@@ -262,10 +263,10 @@ async function startServer(): Promise<void> {
     await initializeRedis();
 
     // Start HTTP server
-    const server = app.listen(PORT, () => {
+    const server = app.listen(port, '0.0.0.0', () => {
       logger.info(`${SERVICE_NAME} started successfully`, {
         service: SERVICE_NAME,
-        port: PORT,
+        port: port,
         environment: NODE_ENV,
         nodeVersion: process.version,
         pid: process.pid,
