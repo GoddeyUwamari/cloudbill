@@ -252,7 +252,7 @@ export class UserModel {
       await authDatabase.setTenantContext(tenantId);
 
       const query = `
-        SELECT 
+        SELECT
           id,
           email,
           password_hash as "passwordHash",

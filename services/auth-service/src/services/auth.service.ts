@@ -12,14 +12,14 @@ import {
 import {
   ValidationError,
   AuthenticationError,
-  ConflictError,
   NotFoundError,
 } from '@shared/middleware/error-handler';
-import { 
-  generateTokens, 
-  verifyRefreshToken 
+import {
+  generateTokens,
+  verifyRefreshToken
 } from '@shared/middleware/auth.middleware';
 import { UserModel } from '../models/user.model';
+import { TenantModel } from '../models/tenant.model';
 import { authDatabase } from '../config/database.config';
 
 /**
@@ -81,28 +81,34 @@ export class AuthService {
       this.validateName(firstName, 'First name');
       this.validateName(lastName, 'Last name');
 
-      // For now, use tenant name as tenant ID (in production, create tenant first)
-      const tenantId = uuidv4(); // TODO: Replace with actual tenant creation
+      // Note: Email uniqueness is enforced per tenant by database constraint
+      // Same email can exist in different tenants (multi-tenant design)
 
-      // Check if user already exists
-      const existingUser = await UserModel.findByEmail(email, tenantId);
-      if (existingUser) {
-        throw new ConflictError('User with this email already exists');
-      }
-
-      // Create user in transaction
+      // Create tenant and user in transaction
       const user = await authDatabase.transaction(async (_client) => {
-        // TODO: Create tenant first if new registration
-        // const tenant = await TenantModel.create({ name: tenantName, ... });
+        // Create tenant first
+        const tenant = await TenantModel.create({
+          name: _tenantName,
+          billingEmail: email, // Use user's email as billing email
+          plan: 'FREE',
+          status: 'TRIAL',
+          maxUsers: 5,
+          settings: {},
+        });
 
-        // Create user
+        logger.info('Tenant created for new registration', {
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+        });
+
+        // Create user with the new tenant ID
         const newUser = await UserModel.create({
           email,
           password,
           firstName,
           lastName,
           role,
-          tenantId,
+          tenantId: tenant.id,
           status: UserStatus.ACTIVE,
           emailVerified: false,
         });
@@ -179,6 +185,7 @@ export class AuthService {
       }
 
       const isPasswordValid = await UserModel.verifyPassword(password, user.passwordHash);
+
       if (!isPasswordValid) {
         throw new AuthenticationError('Invalid email or password');
       }
