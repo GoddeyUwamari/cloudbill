@@ -1,8 +1,8 @@
 /**
  * Subscription Routes
  * RESTful API endpoints for subscription management
- * 
- * Base path: /api/v1/subscriptions
+ *
+ * Base path: /api/billing/subscriptions
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -27,7 +27,7 @@ const router = Router();
 // ============================================================================
 
 /**
- * GET /api/v1/subscriptions/tenant/:tenantId
+ * GET /api/billing/subscriptions/tenant/:tenantId
  * Get all subscriptions for a tenant with optional filters
  */
 router.get(

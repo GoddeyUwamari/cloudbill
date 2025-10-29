@@ -40,7 +40,6 @@ class SubscriptionService {
         SELECT ${TENANT_SUBSCRIPTION_COLUMNS}
         FROM tenant_subscriptions
         WHERE tenant_id = $1
-          AND deleted_at IS NULL
       `;
       const params: any[] = [tenantId];
       let paramIndex = 2;
@@ -92,7 +91,7 @@ class SubscriptionService {
       const queryText = `
         SELECT ${TENANT_SUBSCRIPTION_COLUMNS}
         FROM tenant_subscriptions
-        WHERE id = $1 AND deleted_at IS NULL
+        WHERE id = $1
       `;
 
       const result = await query<TenantSubscription>(queryText, [id]);
@@ -119,7 +118,7 @@ class SubscriptionService {
           ${SUBSCRIPTION_PLAN_COLUMNS.split('\n').map(line => 'sp.' + line.trim()).join(',\n')}
         FROM tenant_subscriptions ts
         INNER JOIN subscription_plans sp ON ts.plan_id = sp.id
-        WHERE ts.id = $1 AND ts.deleted_at IS NULL
+        WHERE ts.id = $1
       `;
 
       const result = await query(queryText, [id]);
@@ -143,9 +142,8 @@ class SubscriptionService {
       const queryText = `
         SELECT ${TENANT_SUBSCRIPTION_COLUMNS}
         FROM tenant_subscriptions
-        WHERE tenant_id = $1 
+        WHERE tenant_id = $1
           AND status = 'active'
-          AND deleted_at IS NULL
         ORDER BY created_at DESC
         LIMIT 1
       `;
@@ -170,7 +168,6 @@ class SubscriptionService {
           AND auto_renew = false
           AND current_period_end <= NOW() + INTERVAL '${days} days'
           AND current_period_end > NOW()
-          AND deleted_at IS NULL
         ORDER BY current_period_end ASC
       `;
 

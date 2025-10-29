@@ -103,7 +103,7 @@ export const USAGE_RECORD_COLUMNS = `
   tenant_id as "tenantId",
   subscription_id as "subscriptionId",
   usage_type as "usageType",
-  quantity,
+  quantity::numeric::float8 as quantity,
   unit,
   period_start as "periodStart",
   period_end as "periodEnd",

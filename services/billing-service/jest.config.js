@@ -8,7 +8,11 @@ module.exports = {
   ],
   transform: {
     '^.+\\.ts$': 'ts-jest',
+    '^.+\\.js$': 'babel-jest',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!@faker-js)',
+  ],
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/../../shared/$1',
   },
@@ -29,6 +33,7 @@ module.exports = {
       statements: 70,
     },
   },
+  setupFiles: ['<rootDir>/__tests__/helpers/env-setup.ts'],
   setupFilesAfterEnv: ['<rootDir>/__tests__/helpers/setup.ts'],
   testTimeout: 30000,
   verbose: true,

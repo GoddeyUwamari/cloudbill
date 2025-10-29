@@ -1,21 +1,19 @@
 /**
  * Test Setup and Teardown for Billing Service
+ * Configures test environment, database, and mocks
+ *
+ * Note: Environment variables are loaded in env-setup.ts which runs first
  */
 
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load test environment variables
-dotenv.config({ path: path.join(__dirname, '../../.env.test') });
-
-// Set test environment
-process.env.NODE_ENV = 'test';
-process.env.DB_NAME = process.env.DB_NAME || 'cloudbill_test';
+import { billingDatabase } from '../../src/config/database.config';
 
 // Test database pool
 let testPool: Pool | null = null;
 
+/**
+ * Initialize test database connection
+ */
 export async function setupTestDatabase(): Promise<Pool> {
   if (testPool) {
     return testPool;
@@ -31,6 +29,7 @@ export async function setupTestDatabase(): Promise<Pool> {
   });
 
   try {
+    // Test connection
     const client = await testPool.connect();
     await client.query('SELECT NOW()');
     client.release();
@@ -43,6 +42,9 @@ export async function setupTestDatabase(): Promise<Pool> {
   return testPool;
 }
 
+/**
+ * Clean test database - removes all test data
+ */
 export async function cleanTestDatabase(): Promise<void> {
   if (!testPool) {
     return;
@@ -51,27 +53,21 @@ export async function cleanTestDatabase(): Promise<void> {
   try {
     // Disable RLS for testing
     await testPool.query('ALTER TABLE IF EXISTS invoices DISABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS subscriptions DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS invoice_items DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS tenant_subscriptions DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS subscription_plans DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS usage_records DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS users DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS tenants DISABLE ROW LEVEL SECURITY');
 
     // Clean tables in reverse order of dependencies
-    await testPool.query('DELETE FROM usage_records');
     await testPool.query('DELETE FROM invoice_items');
     await testPool.query('DELETE FROM invoices');
-    await testPool.query('DELETE FROM subscriptions');
+    await testPool.query('DELETE FROM usage_records');
+    await testPool.query('DELETE FROM tenant_subscriptions');
     await testPool.query('DELETE FROM users');
     await testPool.query('DELETE FROM tenants');
-
-    // Re-enable RLS
-    await testPool.query('ALTER TABLE IF EXISTS invoices ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS subscriptions ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS subscription_plans ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS usage_records ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS tenants ENABLE ROW LEVEL SECURITY');
+    // Don't delete subscription_plans as they are seed data
 
     console.log('Test database cleaned');
   } catch (error) {
@@ -80,6 +76,9 @@ export async function cleanTestDatabase(): Promise<void> {
   }
 }
 
+/**
+ * Close test database connection
+ */
 export async function teardownTestDatabase(): Promise<void> {
   if (testPool) {
     await testPool.end();
@@ -88,6 +87,9 @@ export async function teardownTestDatabase(): Promise<void> {
   }
 }
 
+/**
+ * Get test database pool
+ */
 export function getTestPool(): Pool {
   if (!testPool) {
     throw new Error('Test database not initialized. Call setupTestDatabase() first.');
@@ -95,17 +97,27 @@ export function getTestPool(): Pool {
   return testPool;
 }
 
+// Jest global setup and teardown
 beforeAll(async () => {
   await setupTestDatabase();
+  // Initialize billing database for app usage
+  try {
+    await billingDatabase.initialize();
+  } catch (error) {
+    console.error('Failed to initialize billing database:', error);
+  }
 });
 
 afterAll(async () => {
   await cleanTestDatabase();
+  await billingDatabase.close();
   await teardownTestDatabase();
 });
 
+// Clean database before each test
 beforeEach(async () => {
   await cleanTestDatabase();
 });
 
+// Export for direct use in tests
 export { testPool };

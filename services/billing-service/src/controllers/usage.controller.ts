@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { logger } from '@shared/utils/logger';
-import { ApiResponse, PaginatedResponse } from '@shared/types';
+import { ApiResponse } from '@shared/types';
 import {
   ValidationError,
   NotFoundError,
@@ -136,12 +136,11 @@ export class UsageController {
         { page, limit, sortBy, sortOrder }
       );
 
-      const response: ApiResponse<PaginatedResponse<typeof result.data[0]>> = {
+      // Flatten the response structure - put data and pagination at top level
+      const response = {
         success: true,
-        data: {
-          data: result.data,
-          pagination: result.pagination,
-        },
+        data: result.data,
+        pagination: result.pagination,
         timestamp: new Date().toISOString(),
       };
 
