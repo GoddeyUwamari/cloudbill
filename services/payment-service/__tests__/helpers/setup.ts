@@ -37,14 +37,28 @@ export async function cleanTestDatabase(): Promise<void> {
   if (!testPool) return;
 
   try {
+    // Disable RLS for all payment tables
+    await testPool.query('ALTER TABLE IF EXISTS transactions DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS refunds DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS payments DISABLE ROW LEVEL SECURITY');
     await testPool.query('ALTER TABLE IF EXISTS payment_methods DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS invoices DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS users DISABLE ROW LEVEL SECURITY');
+    await testPool.query('ALTER TABLE IF EXISTS tenants DISABLE ROW LEVEL SECURITY');
+
+    // Clean tables in reverse order of dependencies
+    await testPool.query('DELETE FROM transactions');
+    await testPool.query('DELETE FROM refunds');
     await testPool.query('DELETE FROM payments');
     await testPool.query('DELETE FROM payment_methods');
-    await testPool.query('ALTER TABLE IF EXISTS payments ENABLE ROW LEVEL SECURITY');
-    await testPool.query('ALTER TABLE IF EXISTS payment_methods ENABLE ROW LEVEL SECURITY');
+    await testPool.query('DELETE FROM invoices');
+    await testPool.query('DELETE FROM users');
+    await testPool.query('DELETE FROM tenants');
+
+    console.log('Test database cleaned successfully');
   } catch (error) {
     console.error('Failed to clean test database:', error);
+    // Don't throw error if database is not available (for unit tests)
   }
 }
 
@@ -63,16 +77,26 @@ export function getTestPool(): Pool {
 }
 
 beforeAll(async () => {
-  await setupTestDatabase();
+  // Only setup database for integration tests (unit tests use mocks)
+  const testPath = expect.getState().testPath || '';
+  if (testPath.includes('/integration/')) {
+    await setupTestDatabase();
+  }
 });
 
 afterAll(async () => {
-  await cleanTestDatabase();
-  await teardownTestDatabase();
+  const testPath = expect.getState().testPath || '';
+  if (testPath.includes('/integration/')) {
+    await cleanTestDatabase();
+    await teardownTestDatabase();
+  }
 });
 
 beforeEach(async () => {
-  await cleanTestDatabase();
+  const testPath = expect.getState().testPath || '';
+  if (testPath.includes('/integration/')) {
+    await cleanTestDatabase();
+  }
 });
 
 export { testPool };

@@ -11,10 +11,8 @@ jest.mock('nodemailer', () => ({
 }));
 
 describe('Notification Routes Integration Tests', () => {
-  let testPool: any;
-
   beforeAll(async () => {
-    testPool = getTestPool();
+    getTestPool();
   });
 
   describe('POST /api/notifications/email', () => {

@@ -2,8 +2,6 @@
  * API Gateway Proxy Integration Tests
  */
 
-import request from 'supertest';
-
 // Mock downstream services
 jest.mock('axios');
 
