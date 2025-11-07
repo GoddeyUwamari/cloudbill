@@ -221,7 +221,7 @@ const createServiceProxy = (
 app.use(
   '/api/auth',
   authRateLimiter,
-  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE, '/api/auth')
+  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE)
 );
 
 // ==========================================
@@ -230,7 +230,7 @@ app.use(
 
 app.use(
   '/api/billing',
-  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE, '/api/billing')
+  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE)
 );
 
 // ==========================================
@@ -239,7 +239,7 @@ app.use(
 
 app.use(
   '/api/payments',
-  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE, '/api/payments')
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
 );
 
 // ==========================================
@@ -248,7 +248,7 @@ app.use(
 
 app.use(
   '/api/notifications',
-  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE, '/api/notifications')
+  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE)
 );
 
 // ==========================================
