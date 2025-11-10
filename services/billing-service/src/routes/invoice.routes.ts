@@ -28,6 +28,92 @@ const router = Router();
 // ============================================================================
 
 /**
+ * GET /api/billing/invoices
+ * Get all invoices for the authenticated tenant with optional filters
+ */
+router.get(
+  '/',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Get tenantId from tenant middleware (set by resolveTenant())
+      const tenantId = (req as any).tenantId;
+
+      if (!tenantId) {
+        throw new ValidationError('Tenant ID not found in request context');
+      }
+
+      // Parse query filters
+      const filters: InvoiceFilters = {};
+
+      if (req.query.status) {
+        filters.status = req.query.status as InvoiceStatus;
+      }
+
+      if (req.query.subscriptionId) {
+        filters.subscriptionId = req.query.subscriptionId as string;
+      }
+
+      if (req.query.isOverdue === 'true') {
+        filters.isOverdue = true;
+      }
+
+      if (req.query.isPaid === 'true') {
+        filters.isPaid = true;
+      }
+
+      if (req.query.isDraft === 'true') {
+        filters.isDraft = true;
+      }
+
+      if (req.query.periodStart) {
+        filters.periodStart = new Date(req.query.periodStart as string);
+      }
+
+      if (req.query.periodEnd) {
+        filters.periodEnd = new Date(req.query.periodEnd as string);
+      }
+
+      if (req.query.minAmount) {
+        filters.minAmount = parseFloat(req.query.minAmount as string);
+      }
+
+      if (req.query.maxAmount) {
+        filters.maxAmount = parseFloat(req.query.maxAmount as string);
+      }
+
+      // Parse limit and offset for pagination
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+
+      let invoices = await invoiceService.getInvoicesByTenant(tenantId, filters);
+
+      // Apply pagination if specified
+      if (offset !== undefined) {
+        invoices = invoices.slice(offset);
+      }
+      if (limit !== undefined) {
+        invoices = invoices.slice(0, limit);
+      }
+
+      logger.info('Retrieved invoices for authenticated tenant', {
+        tenantId,
+        count: invoices.length,
+        limit,
+        offset,
+      });
+
+      res.json({
+        success: true,
+        data: invoices,
+        count: invoices.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/v1/invoices/tenant/:tenantId
  * Get all invoices for a tenant with optional filters
  */
@@ -219,9 +305,17 @@ router.post(
     try {
       const invoiceData: CreateInvoiceDTO = req.body;
 
+      // UUID validation regex
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
       // Validate required fields
       if (!invoiceData.tenantId) {
         throw new ValidationError('tenantId is required');
+      }
+
+      // Validate tenantId format
+      if (!uuidRegex.test(invoiceData.tenantId)) {
+        throw new ValidationError('tenantId must be a valid UUID');
       }
 
       if (!invoiceData.periodStart) {

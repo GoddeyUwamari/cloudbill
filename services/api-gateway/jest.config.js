@@ -7,8 +7,11 @@ module.exports = {
     '**/__tests__/**/*.spec.ts',
   ],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.(ts|js)$': 'ts-jest',
   },
+  transformIgnorePatterns: [
+    "node_modules/(?!uuid|@faker-js/faker|nock)"
+  ],
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/../../shared/$1',
   },

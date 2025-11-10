@@ -94,6 +94,13 @@ router.get('/me', requireAuth, AuthController.getProfile);
  */
 router.patch('/profile', requireAuth, AuthController.updateProfile);
 
+/**
+ * @route   GET /api/auth/tenants
+ * @desc    Get list of tenants with optional search
+ * @access  Private
+ */
+router.get('/tenants', requireAuth, AuthController.getTenants);
+
 // ============================================================================
 // Export Router
 // ============================================================================

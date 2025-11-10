@@ -66,8 +66,29 @@ export async function cleanTestDatabase(): Promise<void> {
     await testPool.query('DELETE FROM usage_records');
     await testPool.query('DELETE FROM tenant_subscriptions');
     await testPool.query('DELETE FROM users');
-    await testPool.query('DELETE FROM tenants');
+    await testPool.query("DELETE FROM tenants WHERE id != '00000000-0000-0000-0000-000000000001'");
     // Don't delete subscription_plans as they are seed data
+
+    // Re-create default tenant for validation tests
+    await testPool.query(`
+      INSERT INTO tenants (id, name, slug, billing_email, plan, status, created_at, updated_at)
+      VALUES (
+        '00000000-0000-0000-0000-000000000001',
+        'Demo Company',
+        'demo',
+        'admin@democompany.com',
+        'PROFESSIONAL',
+        'ACTIVE',
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        billing_email = EXCLUDED.billing_email,
+        plan = EXCLUDED.plan,
+        status = EXCLUDED.status,
+        updated_at = NOW()
+    `);
 
     console.log('Test database cleaned');
   } catch (error) {

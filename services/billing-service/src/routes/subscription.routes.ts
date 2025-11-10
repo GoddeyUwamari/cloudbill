@@ -27,6 +27,76 @@ const router = Router();
 // ============================================================================
 
 /**
+ * GET /api/billing/subscriptions
+ * Get all subscriptions for the authenticated tenant with optional filters
+ */
+router.get(
+  '/',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Get tenantId from tenant middleware (set by resolveTenant())
+      const tenantId = (req as any).tenantId;
+
+      if (!tenantId) {
+        throw new ValidationError('Tenant ID not found in request context');
+      }
+
+      // Parse query filters
+      const filters: TenantSubscriptionFilters = {};
+
+      if (req.query.status) {
+        filters.status = req.query.status as SubscriptionStatus;
+      }
+
+      if (req.query.planId) {
+        filters.planId = req.query.planId as string;
+      }
+
+      if (req.query.billingCycle) {
+        filters.billingCycle = req.query.billingCycle as BillingCycle;
+      }
+
+      if (req.query.isTrial === 'true') {
+        filters.isTrial = true;
+      }
+
+      if (req.query.isActive === 'true') {
+        filters.isActive = true;
+      }
+
+      // Parse limit and offset for pagination
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+
+      let subscriptions = await subscriptionService.getSubscriptionsByTenant(tenantId, filters);
+
+      // Apply pagination if specified
+      if (offset !== undefined) {
+        subscriptions = subscriptions.slice(offset);
+      }
+      if (limit !== undefined) {
+        subscriptions = subscriptions.slice(0, limit);
+      }
+
+      logger.info('Retrieved subscriptions for authenticated tenant', {
+        tenantId,
+        count: subscriptions.length,
+        limit,
+        offset,
+      });
+
+      res.json({
+        success: true,
+        data: subscriptions,
+        count: subscriptions.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/billing/subscriptions/tenant/:tenantId
  * Get all subscriptions for a tenant with optional filters
  */
@@ -200,13 +270,26 @@ router.post(
     try {
       const subscriptionData: CreateTenantSubscriptionDTO = req.body;
 
+      // UUID validation regex
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
       // Validate required fields
       if (!subscriptionData.tenantId) {
         throw new ValidationError('tenantId is required');
       }
 
+      // Validate tenantId format
+      if (!uuidRegex.test(subscriptionData.tenantId)) {
+        throw new ValidationError('tenantId must be a valid UUID');
+      }
+
       if (!subscriptionData.planId) {
         throw new ValidationError('planId is required');
+      }
+
+      // Validate planId format
+      if (!uuidRegex.test(subscriptionData.planId)) {
+        throw new ValidationError('planId must be a valid UUID');
       }
 
       if (!subscriptionData.billingCycle) {

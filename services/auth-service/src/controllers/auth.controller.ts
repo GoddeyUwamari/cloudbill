@@ -8,6 +8,7 @@ import {
 import { AuthService } from '../services/auth.service';
 import { getRedisClient } from '@shared/cache/redis-connection';
 import { randomBytes } from 'crypto';
+import { authDatabase } from '../config/database.config';
 
 /**
  * Authentication Controller
@@ -561,6 +562,59 @@ export class AuthController {
         },
         timestamp: new Date().toISOString(),
       };
+
+      res.status(200).json(response);
+    }
+  );
+
+  /**
+   * Get tenants list with optional search
+   * GET /api/auth/tenants?search=keyword
+   */
+  public static getTenants = asyncHandler(
+    async (req: Request, res: Response): Promise<void> => {
+      const searchQuery = req.query.search as string | undefined;
+
+      // Build SQL query
+      let queryText = `
+        SELECT
+          id,
+          name,
+          billing_email as email,
+          status,
+          created_at as "createdAt"
+        FROM tenants
+        WHERE deleted_at IS NULL
+      `;
+
+      const params: any[] = [];
+
+      // Add search filter if provided
+      if (searchQuery) {
+        queryText += ` AND (name ILIKE $1 OR billing_email ILIKE $1)`;
+        params.push(`%${searchQuery}%`);
+      }
+
+      queryText += ` ORDER BY created_at DESC`;
+
+      const tenants = await authDatabase.query<{
+        id: string;
+        name: string;
+        email: string;
+        status: string;
+        createdAt: string;
+      }>(queryText, params);
+
+      const response: ApiResponse = {
+        success: true,
+        data: tenants,
+        timestamp: new Date().toISOString(),
+      };
+
+      logger.info('Tenants list retrieved', {
+        count: tenants.length,
+        searchQuery,
+      });
 
       res.status(200).json(response);
     }

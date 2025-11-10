@@ -41,9 +41,14 @@ import { InvoiceStatus } from '../../src/models/invoice.model';
 
 describe('Billing Routes Integration Tests', () => {
   let testPool: any;
+  let defaultAuthToken: string;
+  let defaultTenantId: string;
 
   beforeAll(async () => {
     testPool = getTestPool();
+    // Create a default auth token for tests that don't need specific tenant context
+    defaultTenantId = '00000000-0000-0000-0000-000000000001';
+    defaultAuthToken = createAuthToken({ tenantId: defaultTenantId });
   });
 
   // ========================================================================
@@ -69,7 +74,7 @@ describe('Billing Routes Integration Tests', () => {
   // ========================================================================
 
   describe('Subscription Routes', () => {
-    describe('GET /api/billing/subscriptions/tenant/:tenantId', () => {
+    describe('GET /subscriptions/tenant/:tenantId', () => {
       it('should retrieve all subscriptions for a tenant', async () => {
         // Setup test data
         const tenant = await createTenant(testPool);
@@ -79,12 +84,14 @@ describe('Billing Routes Integration Tests', () => {
           planId: plan.id,
           status: SubscriptionStatus.ACTIVE,
         });
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         console.log('Created subscription:', subscription);
         console.log('Query params:', { tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/subscriptions/tenant/${tenant.id}`)
+          .get(`/subscriptions/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect('Content-Type', /json/)
           .expect(200);
 
@@ -103,6 +110,7 @@ describe('Billing Routes Integration Tests', () => {
       it('should filter subscriptions by status', async () => {
         const tenant = await createTenant(testPool);
         const plan = await createSubscriptionPlan(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         await createTenantSubscription(testPool, {
           tenantId: tenant.id,
@@ -117,7 +125,8 @@ describe('Billing Routes Integration Tests', () => {
         });
 
         const response = await request(app)
-          .get(`/api/billing/subscriptions/tenant/${tenant.id}`)
+          .get(`/subscriptions/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .query({ status: SubscriptionStatus.ACTIVE })
           .expect(200);
 
@@ -127,9 +136,11 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should return empty array when tenant has no subscriptions', async () => {
         const tenant = await createTenant(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/subscriptions/tenant/${tenant.id}`)
+          .get(`/subscriptions/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect(200);
 
         expect(response.body.data).toEqual([]);
@@ -137,12 +148,14 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('GET /api/billing/subscriptions/:id', () => {
+    describe('GET /subscriptions/:id', () => {
       it('should retrieve a subscription by ID', async () => {
         const { tenant, plan, subscription } = await createBillingTestData(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/subscriptions/${subscription.id}`)
+          .get(`/subscriptions/${subscription.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect('Content-Type', /json/)
           .expect(200);
 
@@ -156,7 +169,8 @@ describe('Billing Routes Integration Tests', () => {
         const fakeId = '123e4567-e89b-12d3-a456-426614174999';
 
         const response = await request(app)
-          .get(`/api/billing/subscriptions/${fakeId}`)
+          .get(`/subscriptions/${fakeId}`)
+          .set('Authorization', `Bearer ${defaultAuthToken}`)
           .expect(404);
 
         expect(response.body).toHaveProperty('success', false);
@@ -164,7 +178,7 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('POST /api/billing/subscriptions', () => {
+    describe('POST /subscriptions', () => {
       it('should create a new subscription', async () => {
         const tenant = await createTenant(testPool);
         const plan = await createSubscriptionPlan(testPool);
@@ -191,8 +205,11 @@ describe('Billing Routes Integration Tests', () => {
 
         console.log('Subscription data:', subscriptionData);
 
+        const authToken = createAuthToken({ tenantId: tenant.id });
+
         const response = await request(app)
-          .post('/api/billing/subscriptions')
+          .post('/subscriptions')
+          .set('Authorization', `Bearer ${authToken}`)
           .send(subscriptionData)
           .expect('Content-Type', /json/);
 
@@ -209,7 +226,8 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should return 400 for invalid subscription data', async () => {
         const response = await request(app)
-          .post('/api/billing/subscriptions')
+          .post('/subscriptions')
+          .set('Authorization', `Bearer ${defaultAuthToken}`)
           .send({ tenantId: 'invalid', planId: 'invalid' })
           .expect(400);
 
@@ -217,14 +235,16 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('POST /api/billing/subscriptions/:id/cancel', () => {
+    describe('POST /subscriptions/:id/cancel', () => {
       it('should cancel a subscription', async () => {
-        const { subscription } = await createBillingTestData(testPool, {
+        const { tenant, subscription } = await createBillingTestData(testPool, {
           subscriptionStatus: SubscriptionStatus.ACTIVE,
         });
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .post(`/api/billing/subscriptions/${subscription.id}/cancel`)
+          .post(`/subscriptions/${subscription.id}/cancel`)
+          .set('Authorization', `Bearer ${authToken}`)
           .send({ immediately: false })
           .expect(200);
 
@@ -239,15 +259,17 @@ describe('Billing Routes Integration Tests', () => {
   // ========================================================================
 
   describe('Invoice Routes', () => {
-    describe('GET /api/billing/invoices/tenant/:tenantId', () => {
+    describe('GET /invoices/tenant/:tenantId', () => {
       it('should retrieve all invoices for a tenant', async () => {
         const { tenant, invoice } = await createBillingTestData(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         console.log('Created invoice:', invoice);
         console.log('Query params:', { tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/invoices/tenant/${tenant.id}`)
+          .get(`/invoices/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect('Content-Type', /json/)
           .expect(200);
 
@@ -263,6 +285,7 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should filter invoices by status', async () => {
         const { tenant } = await createBillingTestData(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         await createInvoice(testPool, {
           tenantId: tenant.id,
@@ -270,7 +293,8 @@ describe('Billing Routes Integration Tests', () => {
         });
 
         const response = await request(app)
-          .get(`/api/billing/invoices/tenant/${tenant.id}`)
+          .get(`/invoices/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .query({ status: InvoiceStatus.OPEN })
           .expect(200);
 
@@ -279,21 +303,25 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should return empty array when tenant has no invoices', async () => {
         const tenant = await createTenant(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/invoices/tenant/${tenant.id}`)
+          .get(`/invoices/tenant/${tenant.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect(200);
 
         expect(response.body.data).toEqual([]);
       });
     });
 
-    describe('GET /api/billing/invoices/:id', () => {
+    describe('GET /invoices/:id', () => {
       it('should retrieve an invoice by ID', async () => {
-        const { invoice } = await createBillingTestData(testPool);
+        const { tenant, invoice } = await createBillingTestData(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .get(`/api/billing/invoices/${invoice.id}`)
+          .get(`/invoices/${invoice.id}`)
+          .set('Authorization', `Bearer ${authToken}`)
           .expect('Content-Type', /json/)
           .expect(200);
 
@@ -307,16 +335,18 @@ describe('Billing Routes Integration Tests', () => {
         const fakeId = '123e4567-e89b-12d3-a456-426614174999';
 
         const response = await request(app)
-          .get(`/api/billing/invoices/${fakeId}`)
+          .get(`/invoices/${fakeId}`)
+          .set('Authorization', `Bearer ${defaultAuthToken}`)
           .expect(404);
 
         expect(response.body).toHaveProperty('success', false);
       });
     });
 
-    describe('POST /api/billing/invoices', () => {
+    describe('POST /invoices', () => {
       it('should create a new invoice', async () => {
         const { tenant, subscription } = await createBillingTestData(testPool);
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         const invoiceData = {
           tenantId: tenant.id,
@@ -329,7 +359,8 @@ describe('Billing Routes Integration Tests', () => {
         };
 
         const response = await request(app)
-          .post('/api/billing/invoices')
+          .post('/invoices')
+          .set('Authorization', `Bearer ${authToken}`)
           .send(invoiceData)
           .expect('Content-Type', /json/)
           .expect(201);
@@ -342,7 +373,8 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should return 400 for invalid invoice data', async () => {
         const response = await request(app)
-          .post('/api/billing/invoices')
+          .post('/invoices')
+          .set('Authorization', `Bearer ${defaultAuthToken}`)
           .send({ tenantId: 'invalid' })
           .expect(400);
 
@@ -350,17 +382,19 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('POST /api/billing/invoices/:id/finalize', () => {
+    describe('POST /invoices/:id/finalize', () => {
       it('should finalize a draft invoice', async () => {
-        const { invoice } = await createBillingTestData(testPool, {
+        const { tenant, invoice } = await createBillingTestData(testPool, {
           invoiceStatus: InvoiceStatus.DRAFT,
         });
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         console.log('Created invoice for finalize:', invoice);
-        console.log('Request URL:', `/api/billing/invoices/${invoice.id}/finalize`);
+        console.log('Request URL:', `/invoices/${invoice.id}/finalize`);
 
         const response = await request(app)
-          .post(`/api/billing/invoices/${invoice.id}/finalize`);
+          .post(`/invoices/${invoice.id}/finalize`)
+          .set('Authorization', `Bearer ${authToken}`);
 
         console.log('Response status:', response.status);
         console.log('Response body:', JSON.stringify(response.body, null, 2));
@@ -371,11 +405,12 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('POST /api/billing/invoices/:id/payment', () => {
+    describe('POST /invoices/:id/payment', () => {
       it('should mark invoice as paid', async () => {
-        const { invoice } = await createBillingTestData(testPool, {
+        const { tenant, invoice } = await createBillingTestData(testPool, {
           invoiceStatus: InvoiceStatus.OPEN,
         });
+        const authToken = createAuthToken({ tenantId: tenant.id });
 
         console.log('Created invoice for payment:', invoice);
         console.log('Invoice totalAmount:', invoice.totalAmount, 'type:', typeof invoice.totalAmount);
@@ -394,7 +429,8 @@ describe('Billing Routes Integration Tests', () => {
         console.log('Payment data:', paymentData);
 
         const response = await request(app)
-          .post(`/api/billing/invoices/${invoice.id}/payment`)
+          .post(`/invoices/${invoice.id}/payment`)
+          .set('Authorization', `Bearer ${authToken}`)
           .send(paymentData);
 
         console.log('Response status:', response.status);
@@ -412,10 +448,11 @@ describe('Billing Routes Integration Tests', () => {
   // ========================================================================
 
   describe('Usage Routes', () => {
-    describe('GET /api/billing/usage/health', () => {
+    describe('GET /usage/health', () => {
       it('should return usage API health status', async () => {
         const response = await request(app)
-          .get('/api/billing/usage/health')
+          .get('/usage/health')
+          .set('Authorization', `Bearer ${defaultAuthToken}`)
           .expect(200);
 
         expect(response.body).toHaveProperty('success', true);
@@ -424,7 +461,7 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('POST /api/billing/usage', () => {
+    describe('POST /usage', () => {
       it('should record a new usage event', async () => {
         const { tenant, subscription } = await createBillingTestData(testPool);
         const authToken = createAuthToken({ tenantId: tenant.id });
@@ -441,7 +478,7 @@ describe('Billing Routes Integration Tests', () => {
         };
 
         const response = await request(app)
-          .post('/api/billing/usage')
+          .post('/usage')
           .set('Authorization', `Bearer ${authToken}`)
           .send(usageData)
           .expect('Content-Type', /json/)
@@ -456,7 +493,7 @@ describe('Billing Routes Integration Tests', () => {
 
       it('should return 401 for missing auth token', async () => {
         const response = await request(app)
-          .post('/api/billing/usage')
+          .post('/usage')
           .send({ usageType: 'api_calls', quantity: 100, unit: 'requests' })
           .expect(401);
 
@@ -468,7 +505,7 @@ describe('Billing Routes Integration Tests', () => {
         const authToken = createAuthToken({ tenantId: tenant.id });
 
         const response = await request(app)
-          .post('/api/billing/usage')
+          .post('/usage')
           .set('Authorization', `Bearer ${authToken}`)
           .send({ tenantId: 'invalid' })
           .expect(400);
@@ -477,7 +514,7 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('GET /api/billing/usage', () => {
+    describe('GET /usage', () => {
       it('should retrieve usage records with pagination', async () => {
         const { tenant, subscription } = await createBillingTestData(testPool);
         const authToken = createAuthToken({ tenantId: tenant.id });
@@ -493,7 +530,7 @@ describe('Billing Routes Integration Tests', () => {
         console.log('Query params:', { tenantId: tenant.id, page: 1, limit: 10 });
 
         const response = await request(app)
-          .get('/api/billing/usage')
+          .get('/usage')
           .set('Authorization', `Bearer ${authToken}`)
           .query({ tenantId: tenant.id, page: 1, limit: 10 })
           .expect(200);
@@ -511,7 +548,7 @@ describe('Billing Routes Integration Tests', () => {
       });
     });
 
-    describe('GET /api/billing/usage/summary', () => {
+    describe('GET /usage/summary', () => {
       it('should retrieve usage summary', async () => {
         const { tenant, subscription } = await createBillingTestData(testPool);
         const authToken = createAuthToken({ tenantId: tenant.id });
@@ -524,7 +561,7 @@ describe('Billing Routes Integration Tests', () => {
         });
 
         const response = await request(app)
-          .get('/api/billing/usage/summary')
+          .get('/usage/summary')
           .set('Authorization', `Bearer ${authToken}`)
           .query({ tenantId: tenant.id })
           .expect(200);

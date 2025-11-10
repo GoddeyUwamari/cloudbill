@@ -13,6 +13,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { logger } from '@shared/utils/logger';
 import { errorHandler, notFoundHandler } from '@shared/middleware/error-handler';
+import { requireAuth } from '@shared/middleware/auth.middleware';
+import { resolveTenant } from '@shared/middleware/tenant.middleware';
 import { billingDatabase } from './config/database.config';
 import billingRoutes from './routes';
 
@@ -147,9 +149,7 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
 // API Routes
 // ============================================================================
 
-app.use('/api/billing', billingRoutes);
-
-// Root endpoint
+// Root endpoint (must come before authenticated routes)
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     service: SERVICE_NAME,
@@ -163,6 +163,10 @@ app.get('/', (_req: Request, res: Response) => {
     },
   });
 });
+
+// Apply authentication and tenant resolution to all API routes
+// Note: API Gateway strips /api/billing prefix, so we mount at root
+app.use('/', requireAuth, resolveTenant(), billingRoutes);
 
 // ============================================================================
 // Error Handling Middleware

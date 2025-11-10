@@ -67,7 +67,7 @@ app.use(cors({
 // Compression
 app.use(compression());
 
-// Body parsing
+// Body parsing (for non-proxy routes)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -154,36 +154,24 @@ const createServiceProxy = (
     } : undefined,
 
     // Add custom headers to forwarded requests
-    onProxyReq: (proxyReq, req: any) => {
-      // Re-stream parsed body for POST/PUT/PATCH requests
-      if (req.body && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')) {
-        try {
-          const bodyData = JSON.stringify(req.body);
-          proxyReq.setHeader('Content-Type', 'application/json');
-          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-          proxyReq.write(bodyData);
-        } catch (error) {
-          logger.error('Error writing body to proxy:', { error: error instanceof Error ? error.message : String(error) });
-        }
-      }
-      
+    onProxyReq: (proxyReq, req: any, _res) => {
       // Forward user info from JWT middleware
       if (req.user) {
         proxyReq.setHeader('X-User-ID', req.user.id);
         proxyReq.setHeader('X-User-Email', req.user.email);
         proxyReq.setHeader('X-User-Role', req.user.role);
       }
-      
+
       // Forward tenant ID
       if (req.tenantId) {
         proxyReq.setHeader('X-Tenant-ID', req.tenantId);
       }
-      
+
       // Forward request ID for tracing
       if (req.id) {
         proxyReq.setHeader('X-Request-ID', req.id);
       }
-      
+
       // Log proxy request
       logger.debug(`[Gateway → ${serviceName}] ${req.method} ${req.path}`);
     },
@@ -221,7 +209,7 @@ const createServiceProxy = (
 app.use(
   '/api/auth',
   authRateLimiter,
-  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE)
+  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE, '/api/auth')
 );
 
 // ==========================================
@@ -230,7 +218,7 @@ app.use(
 
 app.use(
   '/api/billing',
-  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE)
+  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE, '/api/billing')
 );
 
 // ==========================================
@@ -239,7 +227,7 @@ app.use(
 
 app.use(
   '/api/payments',
-  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE, '/api/payments')
 );
 
 // ==========================================
@@ -248,7 +236,7 @@ app.use(
 
 app.use(
   '/api/notifications',
-  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE)
+  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE, '/api/notifications')
 );
 
 // ==========================================
