@@ -96,7 +96,7 @@ class AuthDatabaseConfig {
 
       logger.debug('Database query executed', {
         service: 'auth-service',
-        duration: `${duration}ms`,
+        duration,
         rows: result.length,
       });
 
@@ -106,7 +106,7 @@ class AuthDatabaseConfig {
       
       logger.error('Database query failed', {
         service: 'auth-service',
-        duration: `${duration}ms`,
+        duration,
         error: error instanceof Error ? error.message : 'Unknown error',
         query: text.substring(0, 100), // Log first 100 chars of query
       });
@@ -131,17 +131,17 @@ class AuthDatabaseConfig {
 
       logger.debug('Database query executed', {
         service: 'auth-service',
-        duration: `${duration}ms`,
+        duration,
         found: result !== null,
       });
 
       return result;
     } catch (error) {
       const duration = Date.now() - start;
-      
+
       logger.error('Database query failed', {
         service: 'auth-service',
-        duration: `${duration}ms`,
+        duration,
         error: error instanceof Error ? error.message : 'Unknown error',
         query: text.substring(0, 100),
       });

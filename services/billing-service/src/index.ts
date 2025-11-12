@@ -15,6 +15,7 @@ import { logger } from '@shared/utils/logger';
 import { errorHandler, notFoundHandler } from '@shared/middleware/error-handler';
 import { requireAuth } from '@shared/middleware/auth.middleware';
 import { resolveTenant } from '@shared/middleware/tenant.middleware';
+import { initializeMetrics, getMetrics, getMetricsContentType } from '@shared/utils/metrics';
 import { billingDatabase } from './config/database.config';
 import billingRoutes from './routes';
 
@@ -31,6 +32,9 @@ const PORT = process.env.BILLING_SERVICE_PORT || process.env.PORT || '3002';
 const port = parseInt(PORT, 10) || 3002;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SERVICE_NAME = 'billing-service';
+
+// Initialize metrics
+const metrics = initializeMetrics('billing-service');
 
 // ============================================================================
 // Express Application Setup
@@ -77,13 +81,29 @@ app.use((req: Request, res: Response, next) => {
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
-      duration: `${duration}ms`,
+      duration,
       ip: req.ip,
       userAgent: req.get('user-agent'),
     });
   });
 
   next();
+});
+
+// ============================================================================
+// Metrics Endpoint
+// ============================================================================
+
+// Expose Prometheus metrics (no authentication required)
+app.get('/metrics', async (_req: Request, res: Response) => {
+  try {
+    res.setHeader('Content-Type', getMetricsContentType(metrics.register));
+    const metricsOutput = await getMetrics(metrics.register);
+    res.send(metricsOutput);
+  } catch (error) {
+    logger.error('Error generating metrics', { error });
+    res.status(500).send('Error generating metrics');
+  }
 });
 
 // ============================================================================
@@ -290,10 +310,15 @@ process.on('unhandledRejection', (reason: any) => {
 // Start Application
 // ============================================================================
 
-// Only start server if this file is run directly
-if (require.main === module) {
-  startServer();
-}
+// Start the server with proper error handling
+startServer().catch((error) => {
+  logger.error('FATAL: Failed to start server', {
+    service: SERVICE_NAME,
+    error: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
+  });
+  process.exit(1);
+});
 
 // Export app for testing
 export default app;

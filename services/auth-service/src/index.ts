@@ -1,39 +1,54 @@
 // ============================================================================
+// Early console logging to debug startup issues
+// ============================================================================
+console.log('[AUTH-SERVICE] Starting initialization...');
+
+// ============================================================================
 // Load Environment Variables FIRST
 // ============================================================================
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.join(__dirname, '../.env') });
+console.log('[AUTH-SERVICE] Environment loaded');
 
 // ============================================================================
 // Application Imports
 // ============================================================================
+console.log('[AUTH-SERVICE] Loading Express...');
 import express, { Application, Request, Response } from 'express';
+console.log('[AUTH-SERVICE] Loading middleware...');
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
-import { logger } from '@shared/utils/logger';
+console.log('[AUTH-SERVICE] Loading shared utilities...');
+import { logger, createServiceLogger } from '@shared/utils/logger';
 import { errorHandler, notFoundHandler } from '@shared/middleware/error-handler';
+import { createServiceRequestLogger } from '@shared/middleware/request-logger.middleware';
+import { initializeMetrics, getMetrics, getMetricsContentType } from '@shared/utils/metrics';
+import { createMetricsMiddleware } from '@shared/middleware/metrics.middleware';
+console.log('[AUTH-SERVICE] Loading database config...');
 import { authDatabase } from './config/database.config';
+console.log('[AUTH-SERVICE] Loading Redis...');
 import { connectRedis, disconnectRedis, checkRedisHealth } from '@shared/cache/redis-connection';
+console.log('[AUTH-SERVICE] Loading auth routes...');
 import authRoutes from './routes/auth.routes';
+console.log('[AUTH-SERVICE] All imports loaded successfully');
 
+// Create service-specific logger
+const serviceLogger = createServiceLogger('auth-service');
 
-// TEMPORARY: Override error handlers to see actual error
+// Initialize metrics
+const metrics = initializeMetrics('auth-service');
+
+// Handle uncaught exceptions with structured logging
 process.on('uncaughtException', (error: Error) => {
-  console.error('=== UNCAUGHT EXCEPTION ===');
-  console.error('Name:', error.name);
-  console.error('Message:', error.message);
-  console.error('Stack:', error.stack);
-  console.error('=========================');
+  serviceLogger.error('Uncaught exception', { error });
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason: any) => {
-  console.error('=== UNHANDLED REJECTION ===');
-  console.error('Reason:', reason);
-  console.error('===========================');
+  serviceLogger.error('Unhandled rejection', { error: reason });
   process.exit(1);
 });
 
@@ -93,26 +108,35 @@ app.use(cookieParser());
 app.use(compression());
 
 // ============================================================================
-// Request Logging Middleware
+// Request Logging & Metrics Middleware
 // ============================================================================
 
-app.use((req: Request, res: Response, next) => {
-  const start = Date.now();
+// Use the new structured request logger with correlation IDs
+app.use(createServiceRequestLogger(SERVICE_NAME, {
+  skipPaths: ['/health', '/health/live', '/health/ready', '/metrics'], // Don't log health checks and metrics
+  successLogLevel: 'http',
+}));
 
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info('HTTP Request', {
-      service: SERVICE_NAME,
-      method: req.method,
-      path: req.path,
-      statusCode: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip,
-      userAgent: req.get('user-agent'),
-    });
-  });
+// Metrics collection middleware
+app.use(createMetricsMiddleware(metrics, {
+  excludePaths: ['/metrics', '/health', '/health/live', '/health/ready'],
+  includeTenantId: true,
+}));
 
-  next();
+// ============================================================================
+// Metrics Endpoint
+// ============================================================================
+
+// Expose Prometheus metrics (no authentication required)
+app.get('/metrics', async (_req: Request, res: Response) => {
+  try {
+    res.setHeader('Content-Type', getMetricsContentType(metrics.register));
+    const metricsOutput = await getMetrics(metrics.register);
+    res.send(metricsOutput);
+  } catch (error) {
+    serviceLogger.error('Error generating metrics', { error });
+    res.status(500).send('Error generating metrics');
+  }
 });
 
 // ============================================================================
@@ -328,10 +352,12 @@ async function startServer(): Promise<void> {
 // Start Application
 // ============================================================================
 
-// Only start server if this file is run directly
-if (require.main === module) {
-  startServer();
-}
+// Start the server with proper error handling
+console.log('[AUTH-SERVICE] Calling startServer()...');
+startServer().catch((error) => {
+  console.error('[AUTH-SERVICE] FATAL: Failed to start server:', error);
+  process.exit(1);
+});
 
 // Export app for testing
 export default app;

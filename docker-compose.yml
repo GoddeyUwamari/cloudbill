@@ -1,8 +1,12 @@
 # ============================================================================
 # CloudBill - Docker Compose Configuration
-# Phase 5: All Core Services (PostgreSQL + Redis + Auth + Payment + Notification + API Gateway)
+# Phase 6: Complete Stack with Monitoring (All Services + Prometheus + Grafana)
 # ============================================================================
-# This file defines our Docker services. PostgreSQL for data, Redis for caching.
+# This file defines our Docker services including:
+# - PostgreSQL for data, Redis for caching
+# - 5 Microservices (Auth, Billing, Payment, Notification, API Gateway)
+# - Prometheus for metrics collection & alerting
+# - Grafana for metrics visualization & dashboards
 # We use version 3.8 which is stable and well-supported.
 
 version: '3.8'
@@ -398,36 +402,36 @@ services:
   api-gateway:
     # Container name: Easy to reference in commands
     container_name: cloudbill-gateway
-    
+
     # Build configuration: Build from Dockerfile
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
-    
+
     # Restart policy: Container restarts unless explicitly stopped
     restart: unless-stopped
-    
+
     # Port mapping: HOST_PORT:CONTAINER_PORT
     # Exposes API Gateway on host port 8080
     ports:
       - "8080:8080"
-    
+
     # Environment variables: Configure API Gateway
     environment:
       # Server configuration
       - NODE_ENV=production
       - PORT=8080
-      
+
       # Service URLs (uses Docker network service names)
       - AUTH_SERVICE_URL=http://auth-service:3001
       - BILLING_SERVICE_URL=http://billing-service:3002
       - PAYMENT_SERVICE_URL=http://payment-service:3003
       - NOTIFICATION_SERVICE_URL=http://notification-service:3004
       - ANALYTICS_SERVICE_URL=http://analytics-service:3005
-      
+
       # CORS configuration
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-    
+
     # Dependencies: Wait for auth, billing, payment, and notification services to be healthy before starting
     depends_on:
       auth-service:
@@ -438,7 +442,7 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
-    
+
     # Health check: Monitor if API Gateway is responding
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -446,8 +450,127 @@ services:
       timeout: 3s
       retries: 3
       start_period: 40s
-    
+
     # Networks: Same network for communication with all services
+    networks:
+      - cloudbill-network
+
+  # --------------------------------------------------------------------------
+  # Prometheus - Metrics Collection & Alerting
+  # --------------------------------------------------------------------------
+  prometheus:
+    # Image: Use official Prometheus
+    image: prom/prometheus:v2.48.0
+
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-prometheus
+
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes Prometheus UI on host port 9090
+    ports:
+      - "9090:9090"
+
+    # Command: Configure Prometheus with retention and other settings
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+    # Volumes: Mount configuration and data
+    volumes:
+      # Configuration files
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
+      # Data persistence
+      - prometheus_data:/prometheus
+
+    # Dependencies: Start after all services are available
+    depends_on:
+      - api-gateway
+      - auth-service
+      - billing-service
+      - payment-service
+      - notification-service
+
+    # Health check: Monitor if Prometheus is responding
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    # Networks: Same network to scrape metrics from services
+    networks:
+      - cloudbill-network
+
+  # --------------------------------------------------------------------------
+  # Grafana - Metrics Visualization & Dashboards
+  # --------------------------------------------------------------------------
+  grafana:
+    # Image: Use official Grafana
+    image: grafana/grafana:10.2.2
+
+    # Container name: Easy to reference in commands
+    container_name: cloudbill-grafana
+
+    # Restart policy: Container restarts unless explicitly stopped
+    restart: unless-stopped
+
+    # Port mapping: HOST_PORT:CONTAINER_PORT
+    # Exposes Grafana UI on host port 3000
+    ports:
+      - "3000:3000"
+
+    # Environment variables: Configure Grafana
+    environment:
+      # Admin credentials (change in production!)
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+
+      # Server configuration
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SERVER_DOMAIN=localhost
+
+      # Disable registration and anonymous access
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+
+      # Enable provisioning
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+
+      # Install plugins (optional)
+      - GF_INSTALL_PLUGINS=
+
+    # Volumes: Mount provisioning configs and data
+    volumes:
+      # Datasource provisioning
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Dashboard provisioning
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Data persistence
+      - grafana_data:/var/lib/grafana
+
+    # Dependencies: Wait for Prometheus to be healthy
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+    # Health check: Monitor if Grafana is responding
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+    # Networks: Same network to communicate with Prometheus
     networks:
       - cloudbill-network
 
@@ -459,8 +582,14 @@ services:
 volumes:
   postgres_data:
     driver: local
-  
+
   redis_data:
+    driver: local
+
+  prometheus_data:
+    driver: local
+
+  grafana_data:
     driver: local
 
 # ============================================================================
@@ -487,4 +616,12 @@ networks:
 # Redis CLI:                docker-compose exec redis redis-cli -a redis123
 # PostgreSQL CLI:           docker-compose exec postgres psql -U postgres -d cloudbill
 # Remove everything:        docker-compose down -v (includes volumes!)
+#
+# Monitoring:
+# Prometheus UI:            http://localhost:9090
+# Grafana UI:               http://localhost:3000 (admin/admin)
+# Service metrics:          http://localhost:8080/metrics (and 3001-3004)
+# View Prometheus logs:     docker-compose logs -f prometheus
+# View Grafana logs:        docker-compose logs -f grafana
+# Reload Prometheus:        curl -X POST http://localhost:9090/-/reload
 # ============================================================================

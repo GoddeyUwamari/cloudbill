@@ -28,6 +28,7 @@ export const requestLogger = (
   const startTime = Date.now();
   
   // Get request metadata
+  const tenantIdHeader = req.headers['x-tenant-id'];
   const metadata = {
     requestId,
     method: req.method,
@@ -35,7 +36,7 @@ export const requestLogger = (
     url: req.url,
     ip: req.ip || req.socket.remoteAddress,
     userAgent: req.headers['user-agent'],
-    tenantId: req.headers['x-tenant-id'],
+    tenantId: Array.isArray(tenantIdHeader) ? tenantIdHeader[0] : tenantIdHeader,
     contentLength: req.headers['content-length'],
     referer: req.headers['referer'],
   };
@@ -63,12 +64,12 @@ export const requestLogger = (
     }
     
     // Log response
-    logger[logLevel](`[Gateway] ← ${statusCode} ${req.method} ${req.path}`, {
+    logger[logLevel](`[Gateway] ← ${statusCode} ${req.method} ${req.path} ${duration}ms`, {
       requestId,
       method: req.method,
       path: req.path,
       statusCode,
-      duration: `${duration}ms`,
+      duration,
       contentLength: res.getHeader('content-length'),
       ip: metadata.ip,
     });

@@ -12,7 +12,7 @@ export declare const getRedisInfo: () => {
     db?: undefined;
 } | {
     connected: boolean;
-    status: "close" | "connect" | "wait" | "reconnecting" | "connecting" | "ready" | "end";
+    status: "close" | "end" | "connect" | "wait" | "reconnecting" | "connecting" | "ready";
     host: string | undefined;
     port: number | undefined;
     db: number | undefined;

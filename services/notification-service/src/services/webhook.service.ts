@@ -105,7 +105,7 @@ class WebhookService {
         url: webhookData.url,
         method: webhookData.method || 'POST',
         statusCode: response.status,
-        duration: `${duration}ms`,
+        duration,
       });
 
       return {

@@ -8,6 +8,7 @@ import { createProxyMiddleware, RequestHandler } from 'http-proxy-middleware';
 import dotenv from 'dotenv';
 import logger from '@shared/utils/logger';
 import { errorHandler } from '@shared/middleware/error-handler';
+import { initializeMetrics, getMetrics, getMetricsContentType } from '@shared/utils/metrics';
 import { requestLogger } from './middleware/request-logger';
 import { healthRouter } from './routes/health.routes';
 import { SERVICES } from './config/services.config';
@@ -19,6 +20,9 @@ const app: Application = express();
 const PORT = process.env.PORT || '8080';
 const port = parseInt(PORT, 10) || 8080;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Initialize metrics
+const metrics = initializeMetrics('api-gateway');
 
 // ==========================================
 // GLOBAL MIDDLEWARE
@@ -96,6 +100,26 @@ const globalRateLimiter = rateLimit({
 });
 
 app.use(globalRateLimiter);
+
+// ==========================================
+// METRICS ENDPOINT
+// ==========================================
+
+// Expose Prometheus metrics (no authentication required)
+app.get('/metrics', async (_req: Request, res: Response) => {
+  try {
+    res.setHeader('Content-Type', getMetricsContentType(metrics.register));
+    const metricsOutput = await getMetrics(metrics.register);
+    res.send(metricsOutput);
+  } catch (error) {
+    logger.error('Error generating metrics', { error });
+    res.status(500).send('Error generating metrics');
+  }
+});
+
+// ==========================================
+// AUTH RATE LIMITING
+// ==========================================
 
 // Stricter rate limiter for auth endpoints
 const authRateLimiter = rateLimit({

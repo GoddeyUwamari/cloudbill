@@ -118,7 +118,7 @@ class NotificationDatabaseConfig {
 
       logger.debug('Database query executed', {
         service: 'notification-service',
-        duration: `${duration}ms`,
+        duration,
         rows: result.length,
       });
 
@@ -128,7 +128,7 @@ class NotificationDatabaseConfig {
 
       logger.error('Database query failed', {
         service: 'notification-service',
-        duration: `${duration}ms`,
+        duration,
         error: error instanceof Error ? error.message : 'Unknown error',
         query: text.substring(0, 100), // Log first 100 chars of query
       });
@@ -153,7 +153,7 @@ class NotificationDatabaseConfig {
 
       logger.debug('Database query executed', {
         service: 'notification-service',
-        duration: `${duration}ms`,
+        duration,
         found: result !== null,
       });
 
@@ -163,7 +163,7 @@ class NotificationDatabaseConfig {
 
       logger.error('Database query failed', {
         service: 'notification-service',
-        duration: `${duration}ms`,
+        duration,
         error: error instanceof Error ? error.message : 'Unknown error',
         query: text.substring(0, 100),
       });
