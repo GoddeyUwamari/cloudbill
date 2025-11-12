@@ -81,32 +81,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup test environment
-        env:
-          NODE_ENV: test
-          DB_HOST: localhost
-          DB_PORT: 5433
-          DB_NAME: cloudbill_test
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          REDIS_HOST: localhost
-          REDIS_PORT: 6380
-          REDIS_PASSWORD: ""
-          JWT_SECRET: test-jwt-secret-key-for-ci
-          JWT_REFRESH_SECRET: test-jwt-refresh-secret-key-for-ci
+      - name: Wait for services to be ready
         run: |
-          echo "Test environment configured"
-          echo "NODE_ENV=${NODE_ENV}"
-          echo "DB_HOST=${DB_HOST}"
-          echo "DB_PORT=${DB_PORT}"
-
-      - name: Wait for PostgreSQL
-        run: |
-          until docker exec $(docker ps -q -f "ancestor=postgres:14-alpine") pg_isready -U postgres; do
-            echo "Waiting for PostgreSQL..."
-            sleep 2
-          done
-          echo "PostgreSQL is ready!"
+          timeout 30 bash -c 'until nc -z localhost 5433; do sleep 1; done'
+          timeout 30 bash -c 'until nc -z localhost 6380; do sleep 1; done'
+          echo "✅ PostgreSQL and Redis are ready!"
 
       - name: Run database migrations
         env:
@@ -182,6 +161,16 @@ jobs:
           DB_PASSWORD: postgres
           JWT_SECRET: test-jwt-secret-key-for-ci
         run: npm test -- __tests__/integration --workspace=services/notification-service
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            **/test-results/
+            **/coverage/
+          retention-days: 30
 
   unit-tests-with-coverage:
     name: Unit Tests & Coverage
