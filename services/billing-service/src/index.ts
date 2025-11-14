@@ -53,8 +53,22 @@ app.use(helmet({
 }));
 
 // CORS - Cross-Origin Resource Sharing
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3005',
+  'http://localhost:3010',
+  'http://localhost:5173',
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
@@ -185,8 +199,8 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // Apply authentication and tenant resolution to all API routes
-// Note: API Gateway strips /api/billing prefix, so we mount at root
-app.use('/', requireAuth, resolveTenant(), billingRoutes);
+// Note: API Gateway forwards full path including /api/billing prefix
+app.use('/api/billing', requireAuth, resolveTenant(), billingRoutes);
 
 // ============================================================================
 // Error Handling Middleware

@@ -65,7 +65,7 @@ export async function getDashboardStats(req: Request, res: Response) {
     // Query 3: Active Subscriptions (Current)
     const currentSubscriptionsResult = await query<{ count: string }>(
       `SELECT COUNT(*) as count
-       FROM subscriptions
+       FROM tenant_subscriptions
        WHERE tenant_id=$1 AND status=$2 AND created_at <= $3`,
       [tenantId, 'active', now.toISOString()]
     );
@@ -73,7 +73,7 @@ export async function getDashboardStats(req: Request, res: Response) {
     // Query 4: Active Subscriptions (Previous Period)
     const previousSubscriptionsResult = await query<{ count: string }>(
       `SELECT COUNT(*) as count
-       FROM subscriptions
+       FROM tenant_subscriptions
        WHERE tenant_id=$1 AND status=$2 AND created_at <= $3`,
       [tenantId, 'active', previousPeriodEnd.toISOString()]
     );
@@ -205,7 +205,7 @@ export async function getSubscriptionsList(req: Request, res: Response) {
         ts.current_price as amount,
         ts.current_period_end as "nextBillingDate",
         ts.created_at as "createdAt"
-      FROM subscriptions ts
+      FROM tenant_subscriptions ts
       INNER JOIN tenants t ON ts.tenant_id = t.id
       INNER JOIN subscription_plans sp ON ts.plan_id = sp.id
       WHERE ts.tenant_id = $1
@@ -359,6 +359,116 @@ export async function getInvoicesList(req: Request, res: Response) {
     const errorResponse: ApiResponse = {
       success: false,
       message: 'Failed to retrieve invoices list',
+      timestamp: new Date().toISOString(),
+    };
+    res.status(500).json(errorResponse);
+  }
+}
+
+/**
+ * Get revenue timeline for chart visualization
+ * GET /api/billing/stats/revenue-timeline
+ * Query Parameters: ?days=30 (default: 30, max: 365)
+ */
+export async function getRevenueTimeline(req: Request, res: Response) {
+  try {
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) {
+      const errorResponse: ApiResponse = {
+        success: false,
+        message: 'Tenant ID is required',
+        timestamp: new Date().toISOString(),
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    // Set tenant context for Row-Level Security
+    await setTenantContext(tenantId);
+
+    // Get days parameter (default 30, max 365)
+    const daysParam = req.query.days as string | undefined;
+    let days = 30;
+    if (daysParam) {
+      const parsedDays = parseInt(daysParam, 10);
+      if (!isNaN(parsedDays)) {
+        days = Math.min(Math.max(1, parsedDays), 365);
+      }
+    }
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+
+    // Query to get daily revenue grouped by date
+    const revenueData = await query<{
+      date: string;
+      revenue: string;
+      invoice_count: string;
+    }>(
+      `SELECT
+        DATE(created_at) as date,
+        COALESCE(SUM(total_amount), 0) as revenue,
+        COUNT(*) as invoice_count
+      FROM invoices
+      WHERE tenant_id = $1
+        AND status = 'paid'
+        AND created_at >= $2
+        AND created_at <= $3
+      GROUP BY DATE(created_at)
+      ORDER BY date ASC`,
+      [tenantId, startDate.toISOString(), endDate.toISOString()]
+    );
+
+    // Transform data for frontend chart
+    const timelineData = revenueData.map(row => ({
+      date: row.date,
+      revenue: parseFloat(row.revenue),
+      invoiceCount: parseInt(row.invoice_count),
+    }));
+
+    // Calculate summary statistics
+    const totalRevenue = timelineData.reduce((sum, item) => sum + item.revenue, 0);
+    const totalInvoices = timelineData.reduce((sum, item) => sum + item.invoiceCount, 0);
+    const averageDaily = timelineData.length > 0 ? totalRevenue / timelineData.length : 0;
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        timeline: timelineData,
+        summary: {
+          totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+          totalInvoices,
+          averageDailyRevenue: parseFloat(averageDaily.toFixed(2)),
+          periodDays: days,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    logger.info('Revenue timeline retrieved successfully', {
+      service: 'billing-service',
+      tenantId,
+      days,
+      dataPoints: timelineData.length,
+      totalRevenue,
+    });
+
+    res.json(response);
+  } catch (error) {
+    logger.error('Error fetching revenue timeline', {
+      service: 'billing-service',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    const errorResponse: ApiResponse = {
+      success: false,
+      message: 'Failed to retrieve revenue timeline',
       timestamp: new Date().toISOString(),
     };
     res.status(500).json(errorResponse);

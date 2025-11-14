@@ -49,6 +49,8 @@ app.use(helmet({
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:3005',  // Add this line
+  'http://localhost:3010', 
   'http://localhost:5173', // Vite default
 ];
 
@@ -56,11 +58,13 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Properly deny the request without throwing an error
+      logger.warn(`[Gateway] CORS: Blocked origin: ${origin}`);
+      callback(null, false);
     }
   },
   credentials: true,
@@ -71,9 +75,17 @@ app.use(cors({
 // Compression
 app.use(compression());
 
-// Body parsing (for non-proxy routes)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Raw body buffering for proxy routes
+// Buffer request bodies without parsing them so proxy middleware can forward them
+// Backend services will parse the bodies themselves
+app.use(express.raw({
+  type: '*/*',
+  limit: '10mb',
+  verify: (req: any, _res, buf) => {
+    // Store raw body for proxy to forward
+    req.rawBody = buf;
+  }
+}));
 
 // Request logging with ID
 app.use(requestLogger);
@@ -179,6 +191,11 @@ const createServiceProxy = (
 
     // Add custom headers to forwarded requests
     onProxyReq: (proxyReq, req: any, _res) => {
+      // Forward Authorization header
+      if (req.headers.authorization) {
+        proxyReq.setHeader('Authorization', req.headers.authorization);
+      }
+
       // Forward user info from JWT middleware
       if (req.user) {
         proxyReq.setHeader('X-User-ID', req.user.id);
@@ -194,6 +211,15 @@ const createServiceProxy = (
       // Forward request ID for tracing
       if (req.id) {
         proxyReq.setHeader('X-Request-ID', req.id);
+      }
+
+      // Re-stream the buffered body for POST/PUT/PATCH requests
+      // express.raw() buffers the body, so we need to write it to the proxy request
+      if (req.body && Buffer.isBuffer(req.body) && req.body.length > 0) {
+        const bodyData = req.body;
+        proxyReq.setHeader('Content-Length', bodyData.length);
+        proxyReq.write(bodyData);
+        proxyReq.end();
       }
 
       // Log proxy request
@@ -230,10 +256,11 @@ const createServiceProxy = (
 
 // All auth routes go through a single proxy
 // Auth service will handle its own rate limiting and authentication
+// Note: No pathRewrite needed - auth service expects /api/auth/* paths
 app.use(
   '/api/auth',
   authRateLimiter,
-  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE, '/api/auth')
+  createServiceProxy('auth-service', SERVICES.AUTH_SERVICE)
 );
 
 // ==========================================
@@ -242,7 +269,7 @@ app.use(
 
 app.use(
   '/api/billing',
-  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE, '/api/billing')
+  createServiceProxy('billing-service', SERVICES.BILLING_SERVICE)
 );
 
 // ==========================================
@@ -251,7 +278,7 @@ app.use(
 
 app.use(
   '/api/payments',
-  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE, '/api/payments')
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
 );
 
 // ==========================================
@@ -260,7 +287,7 @@ app.use(
 
 app.use(
   '/api/notifications',
-  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE, '/api/notifications')
+  createServiceProxy('notification-service', SERVICES.NOTIFICATION_SERVICE)
 );
 
 // ==========================================
