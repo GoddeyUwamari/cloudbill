@@ -372,13 +372,13 @@ const server = app.listen(port, '0.0.0.0', () => {
 const shutdown = async () => {
   logger.info('');
   logger.info('🛑 Shutting down API Gateway...');
-  
+
   server.close(() => {
     logger.info('✅ HTTP server closed');
     logger.info('👋 API Gateway shutdown complete');
     process.exit(0);
   });
-  
+
   // Force shutdown after 10 seconds
   setTimeout(() => {
     logger.error('⚠️  Forcing shutdown after timeout');

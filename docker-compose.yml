@@ -432,7 +432,19 @@ services:
       # CORS configuration
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3005,http://localhost:3010,http://localhost:5173,http://localhost:8080
 
-    # Dependencies: Wait for auth, billing, payment, and notification services to be healthy before starting
+      # Database connection (for health checks)
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-cloudbill}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection (for health checks)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123}
+
+    # Dependencies: Wait for services to be healthy before starting
     depends_on:
       auth-service:
         condition: service_healthy

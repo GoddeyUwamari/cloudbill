@@ -50,6 +50,92 @@ const checkServiceHealth = async (
 };
 
 /**
+ * Check PostgreSQL database health using direct connection
+ */
+const checkPostgresHealth = async (): Promise<{
+  status: 'healthy' | 'unhealthy';
+  responseTime: number;
+  error?: string;
+}> => {
+  const startTime = Date.now();
+
+  try {
+    // Create a temporary PostgreSQL client for health check
+    const { Pool } = await import('pg');
+    const pool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      database: process.env.DB_NAME || 'cloudbill',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      connectionTimeoutMillis: 5000,
+    });
+
+    // Test connection with simple query
+    await pool.query('SELECT 1');
+    await pool.end();
+
+    const responseTime = Date.now() - startTime;
+    return { status: 'healthy', responseTime };
+  } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+    return {
+      status: 'unhealthy',
+      responseTime,
+      error: error.message || 'Database connection failed',
+    };
+  }
+};
+
+/**
+ * Check Redis cache health using direct connection
+ */
+const checkRedisHealth = async (): Promise<{
+  status: 'healthy' | 'unhealthy';
+  responseTime: number;
+  error?: string;
+}> => {
+  const startTime = Date.now();
+
+  try {
+    // Create a temporary Redis client for health check
+    const { default: Redis } = await import('ioredis');
+    const redisClient = new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD || undefined,
+      connectTimeout: 5000,
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+    });
+
+    // Connect and test with PING
+    await redisClient.connect();
+    const result = await redisClient.ping();
+    await redisClient.quit();
+
+    const responseTime = Date.now() - startTime;
+
+    if (result === 'PONG') {
+      return { status: 'healthy', responseTime };
+    } else {
+      return {
+        status: 'unhealthy',
+        responseTime,
+        error: `Unexpected PING response: ${result}`,
+      };
+    }
+  } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+    return {
+      status: 'unhealthy',
+      responseTime,
+      error: error.message || 'Redis connection failed',
+    };
+  }
+};
+
+/**
  * GET /health
  * Comprehensive health check - checks gateway and all registered services
  */
@@ -57,12 +143,16 @@ router.get('/', async (_req: Request, res: Response) => {
   const startTime = Date.now();
 
   try {
-    // Check all services in parallel
-    const serviceChecks = await Promise.all([
-      checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE),
-      checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
-      checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
-      checkServiceHealth('notification-service', SERVICES.NOTIFICATION_SERVICE),
+    // Check all services and infrastructure in parallel
+    const [serviceChecks, postgresCheck, redisCheck] = await Promise.all([
+      Promise.all([
+        checkServiceHealth('auth-service', SERVICES.AUTH_SERVICE),
+        checkServiceHealth('billing-service', SERVICES.BILLING_SERVICE),
+        checkServiceHealth('payment-service', SERVICES.PAYMENT_SERVICE),
+        checkServiceHealth('notification-service', SERVICES.NOTIFICATION_SERVICE),
+      ]),
+      checkPostgresHealth(),
+      checkRedisHealth(),
     ]);
 
     const services = {
@@ -70,6 +160,8 @@ router.get('/', async (_req: Request, res: Response) => {
       'billing-service': serviceChecks[1],
       'payment-service': serviceChecks[2],
       'notification-service': serviceChecks[3],
+      postgresql: postgresCheck,
+      redis: redisCheck,
     };
     
     // Determine overall health
