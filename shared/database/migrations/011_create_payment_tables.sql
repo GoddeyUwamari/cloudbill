@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT valid_payment_method_type CHECK (type IN ('card', 'bank_account', 'paypal', 'other')),
     CONSTRAINT valid_payment_method_status CHECK (status IN ('active', 'inactive', 'expired', 'deleted')),
     CONSTRAINT valid_card_exp_month CHECK (card_exp_month IS NULL OR (card_exp_month >= 1 AND card_exp_month <= 12))

@@ -78,7 +78,7 @@ app.use(cors({
 // ============================================================================
 
 // Special handling for Stripe webhooks - need raw body
-app.use('/api/payment/webhooks/stripe', express.raw({ type: 'application/json' }));
+app.use('/api/payments/webhooks/stripe', express.raw({ type: 'application/json' }));
 
 // JSON and URL-encoded body parsing for other routes
 app.use(express.json({ limit: '10mb' }));
@@ -192,7 +192,10 @@ app.get('/health/ready', async (_req: Request, res: Response) => {
 // API Routes
 // ============================================================================
 
-app.use('/api/payment', paymentRoutes);
+// Mount payment routes at multiple paths to support different frontend URLs
+app.use('/api/payments', paymentRoutes);
+app.use('/api/payment-methods', paymentRoutes);
+app.use('/api/refunds', paymentRoutes);
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
@@ -204,7 +207,7 @@ app.get('/', (_req: Request, res: Response) => {
       health: '/health',
       liveness: '/health/live',
       readiness: '/health/ready',
-      api: '/api/payment',
+      api: '/api/payments',
     },
   });
 });

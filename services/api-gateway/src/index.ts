@@ -276,8 +276,21 @@ app.use(
 // PAYMENT SERVICE ROUTES
 // ==========================================
 
+// Payment endpoints
 app.use(
   '/api/payments',
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
+);
+
+// Payment methods endpoints (also handled by payment service)
+app.use(
+  '/api/payment-methods',
+  createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
+);
+
+// Refund endpoints (also handled by payment service)
+app.use(
+  '/api/refunds',
   createServiceProxy('payment-service', SERVICES.PAYMENT_SERVICE)
 );
 
